@@ -2,6 +2,10 @@
   "name": "Win7 Classic",
   "gloss": 0.4,
   "accent": "@highlight",
+  "perf": {
+    "gloss": 0.85,
+    "glow": 0.85
+  },
   "button": {
     "base": "@button",
     "border": "@dark+@window:0.30",
@@ -25,13 +29,14 @@
     "glow": "@highlight+@light:0.45",
     "radius": 3,
     "marqueeMs": 1500,
-    "shine": 1,
+    "shine": 0,
     "shineMs": 2600
   },
   "anim": {
     "enabled": 1,
     "hoverIn": 110,
-    "hoverOut": 240
+    "hoverOut": 240,
+    "frameMs": 25
   },
   "scrollbar": {
     "groove": "@button+@dark:0.20",

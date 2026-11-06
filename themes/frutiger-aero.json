@@ -2,6 +2,10 @@
   "name": "Frutiger Aero",
   "gloss": 0.55,
   "accent": "@highlight",
+  "perf": {
+    "gloss": 1.0,
+    "glow": 1.0
+  },
   "button": {
     "base": "@button+@highlight:0.10",
     "border": "@dark+@highlight:0.35",
@@ -31,7 +35,8 @@
   "anim": {
     "enabled": 1,
     "hoverIn": 110,
-    "hoverOut": 240
+    "hoverOut": 240,
+    "frameMs": 25
   },
   "scrollbar": {
     "groove": "@button+@dark:0.22",

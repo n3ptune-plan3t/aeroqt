@@ -2,6 +2,10 @@
   "name": "Flat Dark",
   "gloss": 0.3,
   "accent": "@highlight",
+  "perf": {
+    "gloss": 0.7,
+    "glow": 0.7
+  },
   "button": {
     "base": "@button+@dark:0.20",
     "border": "@dark",
@@ -25,13 +29,14 @@
     "glow": "@highlight+@light:0.45",
     "radius": 4,
     "marqueeMs": 1500,
-    "shine": 1,
+    "shine": 0,
     "shineMs": 2600
   },
   "anim": {
     "enabled": 1,
     "hoverIn": 110,
-    "hoverOut": 240
+    "hoverOut": 240,
+    "frameMs": 25
   },
   "scrollbar": {
     "groove": "@button+@dark:0.25",

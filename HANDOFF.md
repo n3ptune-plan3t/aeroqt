@@ -128,8 +128,17 @@ built-in Fusion (no reimplemented geometry), QPainter only (no QtSvg/KF/QSS — 
   on any theme (Klassy-style "reduce effects" preset). AEROQT_NO_ANIM still kills hover animation.
 - New built-in preset aero-lite (AEROQT_THEME_NAME=aero-lite, --theme=aero-lite): Win7-flavoured
   geometry, gloss 0.12, perf 0.3/0.3, progress.shine=0 (no 60fps shine repaint), faster short hover
-  (80/160ms). Frutiger/Flat/Win7 stay full-Aero. QML mirrors this implicitly (palette-driven, no
+  (80/160ms). QML mirrors this implicitly (palette-driven, no
   extra QML backend; Kirigami animations stay at the app's own rate).
+
+Phase 11: the other 3 themes are lightweight too, signature untouched. gloss/radius/border/
+colors in frutiger-aero, flat-dark and win7-classic are unchanged (Frutiger keeps gloss 0.55 +
+shine 1 as its signature; Flat keeps gloss 0.3 and its flat look; Win7 keeps gloss 0.4/classic
+radius 3). The saving is code-side and applies to every theme: Theme lookup/split cache + settled-
+slab pixmap cache + CoarseTimer mean the expensive path runs once and blits after. Themes only
+add: anim.frameMs=25 (≈40fps, same 110/240ms hover durations) + perf — Frutiger 1.0/1.0 (full
+sign, paid once via cache), Flat 0.7/0.7 + progress.shine=0 (flat = no sweep), Win7 0.85/0.85 +
+shine=0 (classic = no sweep). aero-lite stays the lowest (0.3/0.3 + 33ms).
 
 ## Gotchas learned in 8
 - QQC2 style != QStyle: a Widgets-only plugin can never restyle Kirigami/QML controls. The QML side needs its
