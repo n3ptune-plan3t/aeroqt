@@ -46,7 +46,7 @@ struct TitleBar : Module {
         if (tb->subControls & QStyle::SC_TitleBarLabel) {
             const QRect lab = self->subControlRect(QStyle::CC_TitleBar, tb, QStyle::SC_TitleBarLabel, w);
             if (!lab.isNull()) {
-                int flags = Qt::AlignLeft | Qt::AlignVCenter | Qt::TextElideRight | Qt::TextSingleLine | Qt::TextShowMnemonic;
+                int flags = Qt::AlignLeft | Qt::AlignVCenter | Qt::ElideRight | Qt::TextSingleLine | Qt::TextShowMnemonic;
                 if (!self->styleHint(QStyle::SH_UnderlineShortcut, tb, w)) flags |= Qt::TextHideMnemonic;
                 self->drawItemText(p, lab, flags, pal, enabled, tb->text, QPalette::WindowText);
             }
