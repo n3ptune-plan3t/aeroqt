@@ -460,12 +460,9 @@ static QWidget *remainingPage()
         QStyleOptionTitleBar tb;
         tb.initFrom(w);
         tb.rect = QRect(4, 4, 380, 22);
-        tb.title = "AeroQt title bar";
-        tb.textVisible = true;
+        tb.text = "AeroQt title bar";
         tb.subControls = QStyle::SC_TitleBarLabel | QStyle::SC_TitleBarMinButton
-                         | QStyle::SC_TitleBarMaxButton | QStyle::SC_TitleBarCloseButton | QStyle::SC_TitleBarMenuButton;
-        tb.features = QStyleOptionTitleBar::CloseButton | QStyleOptionTitleBar::MinButton
-                      | QStyleOptionTitleBar::MaxButton | QStyleOptionTitleBar::MenuButton;
+                         | QStyle::SC_TitleBarMaxButton | QStyle::SC_TitleBarCloseButton | QStyle::SC_TitleBarSysMenu;
         tb.state = QStyle::State_Enabled | QStyle::State_Active;
         w->style()->drawComplexControl(QStyle::CC_TitleBar, &tb, &pt, w);
         for (int i = 0; i < 2; ++i) {  // toolbar extension icons (standard pixmaps, not a primitive)

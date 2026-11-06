@@ -3,8 +3,10 @@
 #include <QStyleOptionTitleBar>
 
 // QMdiSubWindow title bar (CC_TitleBar): glass bar, elided label, glass buttons.
+// QStyleOptionTitleBar members are: text, icon, titleBarFlags, titleBarState (+ subControls).
 // Buttons: slab delegated to buttons module (self->drawPrimitive(PE_PanelButtonTool)),
 // glyph drawn here. Geometry from Fusion via self->subControlRect.
+// Height is PM_TitleBarHeight (there is no CT_TitleBarHeight in QStyle).
 // QCalendarWidget / QWizard / QProgressDialog need no painter of their own: calendar and
 // wizard pages are QFrames (PE_Frame focus glow in frames.cpp), their buttons are tool/push
 // buttons, and QProgressDialog is a progress bar + button - all already Aero.
@@ -12,10 +14,9 @@ namespace {
 struct TitleBar : Module {
     const char *name() const override { return "titlebar"; }
 
-    QSize sizeFromContents(QStyle::ContentsType ct, const QStyleOption *, const QSize &,
-                           const QWidget *, const Theme &t) const override
+    int pixelMetric(QStyle::PixelMetric pm, const QStyleOption *, const QWidget *, const Theme &t) const override
     {
-        return ct == QStyle::CT_TitleBarHeight ? QSize(0, int(t.num("titlebar.height", 22))) : QSize();
+        return pm == QStyle::PM_TitleBarHeight ? int(t.num("titlebar.height", 22)) : -1;
     }
 
     bool drawComplex(QStyle::ComplexControl cc, const QStyleOptionComplex *o, QPainter *p,
@@ -44,19 +45,22 @@ struct TitleBar : Module {
         // ---- label ----
         if (tb->subControls & QStyle::SC_TitleBarLabel) {
             const QRect lab = self->subControlRect(QStyle::CC_TitleBar, tb, QStyle::SC_TitleBarLabel, w);
-            if (!lab.isNull() && tb->textVisible) {
-                int flags = Qt::TextLeft | Qt::TextVCenter | Qt::TextElideRight | Qt::TextSingleLine | Qt::TextShowMnemonic;
+            if (!lab.isNull()) {
+                int flags = Qt::AlignLeft | Qt::AlignVCenter | Qt::TextElideRight | Qt::TextSingleLine | Qt::TextShowMnemonic;
                 if (!self->styleHint(QStyle::SH_UnderlineShortcut, tb, w)) flags |= Qt::TextHideMnemonic;
-                self->drawItemText(p, lab, flags, pal, enabled, tb->title, QPalette::WindowText);
+                self->drawItemText(p, lab, flags, pal, enabled, tb->text, QPalette::WindowText);
             }
         }
 
         // ---- buttons: slab delegated to buttons module, glyph drawn here ----
         struct Btn { QStyle::SubControl sc; const char *glyph; };
-        static const Btn btns[] = {{QStyle::SC_TitleBarMenuButton, "|="},
+        static const Btn btns[] = {{QStyle::SC_TitleBarSysMenu, "|="},
                                    {QStyle::SC_TitleBarMinButton, "-"},
                                    {QStyle::SC_TitleBarMaxButton, "[]"},
                                    {QStyle::SC_TitleBarNormalButton, "[]"},
+                                   {QStyle::SC_TitleBarShadeButton, "^"},
+                                   {QStyle::SC_TitleBarUnshadeButton, "v"},
+                                   {QStyle::SC_TitleBarContextHelpButton, "?"},
                                    {QStyle::SC_TitleBarCloseButton, "x"}};
         for (const Btn &b : btns) {
             if (!(tb->subControls & b.sc)) continue;
