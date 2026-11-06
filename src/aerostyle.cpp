@@ -236,7 +236,7 @@ int AeroStyle::styleHint(StyleHint sh, const QStyleOption *o, const QWidget *w, 
     return QProxyStyle::styleHint(sh, o, w, ret);
 }
 
-QPixmap AeroStyle::standardPixmap(StandardPixmap sp, const QStyleOption *opt) const
+QPixmap AeroStyle::standardPixmap(StandardPixmap sp, const QStyleOption *opt, const QWidget *w) const
 {
     // Toolbar extension button icon (QToolBar shows a QToolButton with this pixmap;
     // there is no PE_IndicatorToolBarExtension primitive in QStyle).
@@ -263,5 +263,6 @@ QPixmap AeroStyle::standardPixmap(StandardPixmap sp, const QStyleOption *opt) co
         }
         return pm;
     }
-    return QProxyStyle::standardPixmap(sp, opt);
+    (void)w;
+    return QProxyStyle::standardPixmap(sp, opt, w);
 }
