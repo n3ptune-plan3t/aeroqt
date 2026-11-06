@@ -5,6 +5,21 @@
 
 namespace Glass {
 
+// Qt HiDPI keeps a device-independent coordinate system for Widgets/Quick, but
+// hairline alignment still depends on the *physical* pixel grid
+// (https://doc.qt.io/qt-6/highdpi.html): a 1px border is 1 physical px, i.e.
+// 0.5 / devicePixelRatio logical units. Snap with the actual DPR so borders
+// stay crisp and not double-width on Retina (QPaintDevice::devicePixelRatioF).
+static qreal snap(QPainter *p)
+{
+    qreal dpr = 1.0;
+    if (QPaintDevice *dev = p ? p->device() : nullptr) {
+        dpr = dev->devicePixelRatioF();
+        if (!qIsFinite(dpr) || dpr <= 0) dpr = 1.0;
+    }
+    return 0.5 / dpr;
+}
+
 static QPainterPath rr(const QRectF &r, qreal rad)
 {
     QPainterPath p;
@@ -23,7 +38,8 @@ void drawSlab(QPainter *p, const QRectF &rectIn, const Spec &s)
         p->rotate(-90);
         rect = QRectF(-rectIn.height() / 2, -rectIn.width() / 2, rectIn.height(), rectIn.width());
     }
-    const QRectF r = rect.adjusted(0.5, 0.5, -0.5, -0.5);
+    const qreal sn = snap(p);
+    const QRectF r = rect.adjusted(sn, sn, -sn, -sn);
     const QPainterPath body = rr(r, s.radius);
 
     const qreal hv = s.hoverT >= 0 ? s.hoverT : (s.hovered ? 1.0 : 0.0);
@@ -34,7 +50,16 @@ void drawSlab(QPainter *p, const QRectF &rectIn, const Spec &s)
                                 base.greenF() + (s.glow.greenF() - base.greenF()) * k,
                                 base.blueF() + (s.glow.blueF() - base.blueF()) * k, base.alphaF());
     }
-    if (!s.enabled) base = QColor::fromHsvF(base.hueF() < 0 ? 0 : base.hueF(), base.saturationF() * 0.3, base.valueF());
+    if (!s.enabled) {
+        // Desaturate toward the grey with the *same* luminance instead of
+        // dropping HSV saturation: HSV keeps the value, which shifts warm/
+        // cool greys (and a grey hueF() < 0 maps to red). 30% color + 70%
+        // luminance-grey stays legible in both light and dark schemes.
+        const qreal lum = 0.299 * base.redF() + 0.587 * base.greenF() + 0.114 * base.blueF();
+        base = QColor::fromRgbF(base.redF() * 0.3 + lum * 0.7,
+                                base.greenF() * 0.3 + lum * 0.7,
+                                base.blueF() * 0.3 + lum * 0.7, base.alphaF());
+    }
 
     // 1. body: Aero "split" gradient (light top half, deeper bottom half)
     QLinearGradient g(r.topLeft(), r.bottomLeft());
@@ -72,9 +97,11 @@ void drawSlab(QPainter *p, const QRectF &rectIn, const Spec &s)
         p->drawPath(rr(top, qMax<qreal>(0, s.radius - 1)));
     }
 
-    // 4. inner white keyline + outer border
+    // 4. inner white keyline + outer border. Keyline strength follows
+    // edgeLight(base) (0.7 light / 0.1 dark) so the engraved white line stays
+    // soft on dark themes instead of a fixed 0.55 white (see edgeLight note).
     p->setBrush(Qt::NoBrush);
-    p->setPen(QPen(QColor::fromRgbF(1, 1, 1, s.pressed ? 0.25 : 0.55), 1));
+    p->setPen(QPen(QColor::fromRgbF(1, 1, 1, (s.pressed ? 0.25 : 0.55) * edgeLight(base) / 0.7), 1));
     p->drawPath(rr(r.adjusted(1, 1, -1, -1), qMax<qreal>(0, s.radius - 1)));
     QColor b = s.border;
     if (!s.enabled) b.setAlphaF(0.5);
@@ -87,7 +114,8 @@ void drawInset(QPainter *p, const QRectF &rect, qreal radius, const QColor &fill
 {
     p->save();
     p->setRenderHint(QPainter::Antialiasing);
-    const QRectF r = rect.adjusted(0.5, 0.5, -0.5, -0.5);
+    const qreal sn = snap(p);
+    const QRectF r = rect.adjusted(sn, sn, -sn, -sn);
     p->setPen(Qt::NoPen);
     p->setBrush(fill);
     p->drawPath(rr(r, radius));
@@ -110,7 +138,8 @@ void drawPanel(QPainter *p, const QRectF &rect, qreal radius, const QColor &fill
 {
     p->save();
     p->setRenderHint(QPainter::Antialiasing);
-    const QRectF r = rect.adjusted(0.5, 0.5, -0.5, -0.5);
+    const qreal sn = snap(p);
+    const QRectF r = rect.adjusted(sn, sn, -sn, -sn);
     QLinearGradient g(r.topLeft(), r.bottomLeft());
     g.setColorAt(0, fill.lighter(106));
     g.setColorAt(1, fill);
@@ -222,11 +251,13 @@ void drawFocusGlow(QPainter *p, const QRectF &rect, qreal radius, const QColor &
     p->save();
     p->setRenderHint(QPainter::Antialiasing);
     p->setBrush(Qt::NoBrush);
+    const qreal sn = snap(p);
     for (int i = 2; i >= 0; --i) {
         QColor a = c;
         a.setAlphaF(0.18 + 0.22 * (2 - i) / 2.0);
         p->setPen(QPen(a, 1));
-        p->drawPath(rr(rect.adjusted(0.5 + (2 - i), 0.5 + (2 - i), -0.5 - (2 - i), -0.5 - (2 - i)), qMax<qreal>(0, radius - (2 - i))));
+        const qreal off = sn + (2 - i);
+        p->drawPath(rr(rect.adjusted(off, off, -off, -off), qMax<qreal>(0, radius - (2 - i))));
     }
     p->restore();
 }

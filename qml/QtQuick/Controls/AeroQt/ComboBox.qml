@@ -9,19 +9,25 @@ T.ComboBox {
     leftPadding: 8; rightPadding: 28; topPadding: 4; bottomPadding: 4
     background: Rectangle {
         radius: 6
-        color: control.palette.button
-        border.color: control.palette.dark
-        border.width: 1
+        color: control.pressed || control.down ? Qt.lighter(control.palette.button, 1.06)
+                : control.hovered ? Qt.lighter(control.palette.button, 1.04)
+                : control.palette.button
+        opacity: control.enabled ? 1 : 0.6
+        border.color: control.visualFocus ? control.palette.highlight
+                        : control.palette.dark
+        border.width: control.visualFocus ? 2 : 1
         Rectangle {
             anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
             height: parent.height * 0.48; radius: 6
             color: Qt.rgba(1, 1, 1, 0.28)
+            visible: control.enabled && !control.pressed
         }
     }
     contentItem: Text {
         text: control.editText
         font: control.font
         color: control.palette.buttonText
+        opacity: control.enabled ? 1 : 0.5
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
     }
@@ -30,6 +36,10 @@ T.ComboBox {
         y: (control.height - height) / 2
         text: "▾"
         color: control.palette.buttonText
+        opacity: control.enabled ? 1 : 0.5
+        rotation: control.popup.visible ? 180 : 0
+        transformOrigin: Item.Center
+        Behavior on rotation { NumberAnimation { duration: 120 } }
     }
     popup: Popup {
         y: control.height + 2

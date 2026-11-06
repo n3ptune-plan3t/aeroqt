@@ -90,13 +90,22 @@ QColor Theme::contrastText(const QColor &bg, const QPalette &pal, QPalette::Colo
 
 static QColor roleColor(const QString &r, const QPalette &p, const QColor &def)
 {
+    // Full QPalette::ColorRole set (https://doc.qt.io/qt-6/qpalette.html#ColorRole):
+    // widgets must use symbolic roles from the active palette, not literal colors,
+    // so KDE color schemes flow through in both light and dark modes.
     struct { const char *n; QPalette::ColorRole role; } map[] = {
         {"window", QPalette::Window}, {"windowText", QPalette::WindowText},
-        {"base", QPalette::Base}, {"text", QPalette::Text},
+        {"base", QPalette::Base}, {"alternateBase", QPalette::AlternateBase},
+        {"toolTipBase", QPalette::ToolTipBase}, {"toolTipText", QPalette::ToolTipText},
+        {"tooltipBase", QPalette::ToolTipBase}, {"tooltipText", QPalette::ToolTipText},
+        {"text", QPalette::Text},
         {"button", QPalette::Button}, {"buttonText", QPalette::ButtonText},
         {"highlight", QPalette::Highlight}, {"highlightedText", QPalette::HighlightedText},
-        {"light", QPalette::Light}, {"mid", QPalette::Mid}, {"dark", QPalette::Dark},
+        {"link", QPalette::Link}, {"linkVisited", QPalette::LinkVisited},
+        {"light", QPalette::Light}, {"midlight", QPalette::Midlight},
+        {"mid", QPalette::Mid}, {"dark", QPalette::Dark},
         {"shadow", QPalette::Shadow},
+        {"placeholderText", QPalette::PlaceholderText},
     };
     for (const auto &m : map)
         if (r == QLatin1String(m.n)) return p.color(m.role);
@@ -113,8 +122,13 @@ QColor Theme::parseColor(const QString &s, const QPalette &pal, const QColor &de
     if (plus < 0) { const QColor c = one(s); return c.isValid() ? c : def; }
     const QString rhs = s.mid(plus + 1);
     const int colon = rhs.lastIndexOf(QLatin1Char(':'));
-    const qreal t = colon >= 0 ? rhs.mid(colon + 1).toDouble() : 0.5;
-    return mix(one(s.left(plus)), one(colon >= 0 ? rhs.left(colon) : rhs), t);
+    bool ok = false;
+    qreal t = colon >= 0 ? rhs.mid(colon + 1).trimmed().toDouble(&ok) : 0.5;
+    if (!ok && colon >= 0) t = 0.5;
+    t = qBound<qreal>(0.0, t, 1.0);
+    const QColor a = one(s.left(plus)), b = one(colon >= 0 ? rhs.left(colon) : rhs);
+    if (!a.isValid() || !b.isValid()) return def;
+    return mix(a, b, t);
 }
 
 QColor Theme::color(const QString &key, const QPalette &pal, const QColor &def) const

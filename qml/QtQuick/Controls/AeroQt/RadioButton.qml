@@ -14,9 +14,11 @@ T.RadioButton {
         radius: 9
         x: control.leftPadding - width - control.spacing
         y: (control.height - height) / 2
-        color: control.palette.base
-        border.color: control.palette.dark
-        border.width: 1
+        color: control.hovered ? Qt.lighter(control.palette.base, 1.08) : control.palette.base
+        opacity: control.enabled ? 1 : 0.5
+        border.color: control.visualFocus ? control.palette.highlight
+                        : control.palette.dark
+        border.width: control.visualFocus ? 2 : 1
         Rectangle {
             anchors.centerIn: parent
             width: 9; height: 9; radius: 4.5
@@ -28,6 +30,7 @@ T.RadioButton {
         text: control.text
         font: control.font
         color: control.palette.text
+        opacity: control.enabled ? 1 : 0.5
         verticalAlignment: Text.AlignVCenter
     }
 }

@@ -14,6 +14,7 @@
 #include <QAbstractScrollArea>
 #include <QDebug>
 #include <QPixmap>
+#include <QScreen>
 
 AeroStyle::AeroStyle() : QProxyStyle(QStringLiteral("fusion"))
 {
@@ -242,13 +243,25 @@ QPixmap AeroStyle::standardPixmap(StandardPixmap sp, const QStyleOption *opt, co
     // there is no PE_IndicatorToolBarExtension primitive in QStyle).
     if (sp == SP_ToolBarHorizontalExtensionButton || sp == SP_ToolBarVerticalExtensionButton) {
         const bool horiz = sp == SP_ToolBarHorizontalExtensionButton;
+        // HiDPI: paint at logical size but back the buffer with devicePixelRatio
+        // physical pixels (https://doc.qt.io/qt-6/highdpi.html "Drawing High
+        // Resolution Versions of Pixmaps"), so the chevron stays sharp on
+        // Retina. Disabled color comes from the Disabled palette group, not a
+        // literal grey, so it stays correct in both light and dark schemes.
+        qreal dpr = 1.0;
+        if (w && w->devicePixelRatioF() > 0) dpr = w->devicePixelRatioF();
+        else if (QGuiApplication::primaryScreen() && QGuiApplication::primaryScreen()->devicePixelRatio() > 0)
+            dpr = QGuiApplication::primaryScreen()->devicePixelRatio();
         QPixmap pm(16, 16);
+        pm.setDevicePixelRatio(dpr);
         pm.fill(Qt::transparent);
         QPainter p(&pm);
         p.setRenderHint(QPainter::Antialiasing);
-        const QColor c = (opt && opt->state & QStyle::State_Enabled)
-                             ? opt->palette.buttonText().color()
-                             : QColor(120, 120, 120);
+        const QColor c = opt
+            ? (opt->state & QStyle::State_Enabled
+                   ? opt->palette.buttonText().color()
+                   : opt->palette.color(QPalette::Disabled, QPalette::ButtonText))
+            : QColor(120, 120, 120);
         p.setPen(Qt::NoPen);
         p.setBrush(c);
         for (int i = 0; i < 2; ++i) {           // double chevron along the bar axis

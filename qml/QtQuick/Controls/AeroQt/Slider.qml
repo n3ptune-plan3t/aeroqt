@@ -13,7 +13,9 @@ T.Slider {
         height: 6
         radius: 3
         color: control.palette.button
-        border.color: control.palette.dark
+        opacity: control.enabled ? 1 : 0.6
+        border.color: control.visualFocus ? control.palette.highlight
+                        : control.palette.dark
         Rectangle {
             width: control.availableWidth * control.visualPosition
             height: parent.height
@@ -26,12 +28,18 @@ T.Slider {
         y: (control.height - height) / 2
         implicitWidth: 18; implicitHeight: 18
         radius: 9
-        color: control.palette.button
-        border.color: control.palette.dark
+        color: control.pressed ? Qt.darker(control.palette.button, 1.06)
+                : control.hovered ? Qt.lighter(control.palette.button, 1.08)
+                : control.palette.button
+        opacity: control.enabled ? 1 : 0.6
+        border.color: control.visualFocus ? control.palette.highlight
+                        : control.palette.dark
+        border.width: control.visualFocus ? 2 : 1
         Rectangle {
             anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
             height: parent.height * 0.48; radius: 9
-            color: Qt.rgba(1, 1, 1, 0.30)
+            color: Qt.rgba(1, 1, 1, control.pressed ? 0.10 : 0.30)
+            visible: control.enabled && !control.pressed
         }
     }
 }

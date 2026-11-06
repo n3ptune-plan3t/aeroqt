@@ -86,6 +86,28 @@ Install: CMake installs it to <libdir>/qt6/qml/QtQuick/Controls/AeroQt. Enable B
 tools/aeroqt-env.sh (installed to share/aeroqt/): QT_STYLE_OVERRIDE=aeroqt (Widgets) +
 QT_QUICK_CONTROLS_STYLE=AeroQt (QML). Source it / add to ~/.profile, re-login. GTK apps unaffected (GTK themes).
 
+Phase 9: theming polish against upstream docs (no local compile; verified via GitHub Actions).
+Docs consulted: QPalette color roles (https://doc.qt.io/qt-6/qpalette.html) — use symbolic roles
+rather than literal colors like "red"; QProxyStyle/custom-style guide
+(https://doc.qt.io/qt-6/qstyle.html#creating-a-custom-style) — wrap the platform style, delegate
+unhandled elements to Fusion; High DPI (https://doc.qt.io/qt-6/highdpi.html) — Widgets/Quick use a
+device-independent coordinate system but hairlines/pixmaps must respect the physical pixel grid via
+QPaintDevice::devicePixelRatioF / QPixmap::setDevicePixelRatio; QQC2 customization
+(https://doc.qt.io/qt-6/qtquickcontrols2-customize.html) — every state (pressed/hovered/visualFocus/
+enabled/checked) must be visibly distinct, use visualFocus (not activeFocus) for the focus border;
+Kirigami colors (https://develop.kde.org/docs/getting-started/kirigami/style-colors) + KDE HIG
+(https://hig.kde.org/) — hard-coded colors break light/dark schemes, pull from the active scheme
+and keep contrast/accessibility (disabled/focus never color-alone).
+Changes: (1) theme.cpp now resolves the full QPalette::ColorRole set (alternateBase, toolTipBase/
+Text, link/linkVisited, midlight, placeholderText) and clamps mix weights, so "@alternateBase"
+etc. no longer silently falls back; (2) progress fill/glow are palette-derived "@highlight" /
+"@highlight+@light:0.45" in all 3 themes (was fixed # hex, which stayed blue/green on every KDE
+scheme) + QML ProgressBar ditto; (3) Glass snap (0.5/dpr) + edgeLight-scaled keyline + luminance-
+grey disabled tint; toolbar-extension pixmap is now DPR-backed and uses the Disabled palette group;
+(4) QML: visualFocus borders (Button/CheckBox/Radio/Combo/Slider/SpinBox/Switch/ScrollBar/
+TextField/TextArea), checked/hovered/pressed/disabled/placeholder states, ComboBox arrow rotates
+when open, Switch knob animates, ProgressBar fill clipped to the groove.
+
 ## Gotchas learned in 8
 - QQC2 style != QStyle: a Widgets-only plugin can never restyle Kirigami/QML controls. The QML side needs its
   own style directory + qmldir, selected by QT_QUICK_CONTROLS_STYLE (not QT_STYLE_OVERRIDE).
@@ -161,6 +183,18 @@ QT_QUICK_CONTROLS_STYLE=AeroQt (QML). Source it / add to ~/.profile, re-login. G
    (QT_QUICK_CONTROLS_STYLE=AeroQt). GTK excluded on purpose.
 5. (done) extra themes flat-dark + win7-classic + token docs (Phase 7)
 6. Wayland/HiDPI check (all painting is vector, uses QRectF); verify with devicePixelRatio test
+   (Phase 9: Glass snap + extension pixmap are DPR-aware; still no live Wayland test headless)
+
+## Gotchas learned in 9
+- Hard-coded hex in theme tokens (progress fill/glow) breaks "follows the KDE scheme": palette
+  role mixes ("@highlight+@light:0.45") derive the same hue in light and dark, per QPalette docs
+  ("use color group roles rather than literal colors") and Kirigami "avoid hard-coded colors".
+- QML: activeFocus != visualFocus. Styling the focus border from activeFocus shows a ring on
+  mouse clicks; Qt docs customize samples gate the border on visualFocus. Disabled = content +
+  background dim, not just border grey (color-alone fails accessibility).
+- devicePixelRatioF: QPaintDevice::devicePixelRatioF (widgets) / QScreen::devicePixelRatio (pixmap
+  fallback). QPixmap painted at 16x16 logical with setDevicePixelRatio(dpr) is automatically
+  drawn at dpr physical pixels — do NOT p.scale(dpr) on top or it double-scales.
 
 ## Conventions
 - New widget = src/modules/<name>.cpp + register<Name>() declared in module.h + AeroStyle ctor + CMake list

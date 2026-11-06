@@ -8,14 +8,17 @@ T.ScrollBar {
     implicitHeight: orientation === Qt.Horizontal ? 12 : 12
     background: Rectangle {
         color: control.palette.button
-        opacity: 0.6
+        opacity: 0.4
     }
     contentItem: Rectangle {
         implicitWidth: control.orientation === Qt.Horizontal ? 40 : 12
         implicitHeight: control.orientation === Qt.Horizontal ? 12 : 40
         radius: 4
-        color: control.palette.button
-        border.color: control.palette.dark
+        color: control.hovered ? Qt.lighter(control.palette.button, 1.1) : control.palette.button
+        opacity: control.enabled ? 1 : 0.6
+        border.color: control.visualFocus ? control.palette.highlight
+                        : control.palette.dark
+        border.width: control.visualFocus ? 2 : 1
         Rectangle {
             anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
             height: control.orientation === Qt.Horizontal ? parent.height * 0.48 : 0

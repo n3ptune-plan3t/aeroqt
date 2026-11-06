@@ -21,8 +21,8 @@
   },
   "progress": {
     "groove": "@button+@dark:0.20",
-    "fill": "#5cb85c",
-    "glow": "#c8f7c5",
+    "fill": "@highlight",
+    "glow": "@highlight+@light:0.45",
     "radius": 3,
     "marqueeMs": 1500,
     "shine": 1,

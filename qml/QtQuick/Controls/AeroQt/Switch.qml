@@ -13,20 +13,27 @@ T.Switch {
         radius: 10
         x: control.leftPadding - width - control.spacing
         y: (control.height - height) / 2
-        color: control.checked ? control.palette.highlight : control.palette.button
-        border.color: control.palette.dark
+        color: control.checked ? (control.hovered ? Qt.lighter(control.palette.highlight, 1.1)
+                                     : control.palette.highlight)
+                : control.palette.button
+        opacity: control.enabled ? 1 : 0.6
+        border.color: control.visualFocus ? control.palette.highlight
+                        : control.palette.dark
+        border.width: control.visualFocus ? 2 : 1
         Rectangle {
             width: 16; height: 16; radius: 8
             x: control.checked ? parent.width - width - 2 : 2
             y: 2
-            color: control.palette.button
+            color: control.checked ? control.palette.highlightedText : control.palette.button
             border.color: control.palette.dark
+            Behavior on x { NumberAnimation { duration: 120 } }
         }
     }
     contentItem: Text {
         text: control.text
         font: control.font
         color: control.palette.text
+        opacity: control.enabled ? 1 : 0.5
         verticalAlignment: Text.AlignVCenter
     }
 }
