@@ -1,6 +1,6 @@
 {
   "name": "Flat Dark",
-  "gloss": 0.30,
+  "gloss": 0.3,
   "accent": "@highlight",
   "button": {
     "base": "@button+@dark:0.20",
@@ -112,7 +112,8 @@
     "base": "@window",
     "border": "@dark",
     "handle": 8,
-    "separator": 8
+    "separator": 8,
+    "extension": 22
   },
   "statusbar": {
     "base": "@window",

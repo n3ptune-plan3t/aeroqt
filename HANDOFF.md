@@ -53,7 +53,7 @@ Tokens: anim.enabled/hoverIn/hoverOut, progress.marqueeMs/shine/shineMs. Kill sw
 Test: `aeroqt-animtest` (ctest: anim_on / anim_off) checks fade monotonicity, fade-out to rest, marquee motion, kill switch.
 
 Phase 6: titlebar.cpp (CC_TitleBar glass bar + delegated button slabs + glyphs), bars.cpp
-PE_IndicatorToolBarExtension double chevron, menus.cpp CE_MenuTearOff engraved line+dots;
+PM_ToolBarExtensionExtent + standardPixmap double-chevron extension icon, menus.cpp CE_MenuTearoff engraved line+dots;
 frames.cpp PE_Frame gained focus glow
 (State_HasFocus -> Glass::drawFocusGlow) covering QTextEdit/QAbstractScrollArea/calendar/wizard pages.
 QCalendarWidget/QWizard/QProgressDialog need no painter: frame + tool/push buttons + progress bar already Aero;
@@ -75,7 +75,7 @@ scrollbar.groove/thumb/border/grip/radius/extent/minThumb | slider.groove/fill/h
 spin.button/radius/buttonWidth | combo.arrow/buttonWidth | tab.base/selected/pane/border/radius/paneRadius
 menu.base/border/separator/item/itemBorder/itemRadius/itemHeight/separatorHeight/hMargin/vMargin
 menubar.base/border | group.base/border/radius | view.selected/inactive/hover/radius | header.base/border
-splitter.width/dots | dock.base/border | toolbar.base/border/handle/separator | statusbar.base/border
+splitter.width/dots | dock.base/border | toolbar.base/border/handle/separator/extension | statusbar.base/border
 titlebar.base/active/border/radius/height
 
 Phase 8: qml/QtQuick/Controls/AeroQt/ QQC2 style (Button/CheckBox/RadioButton/ComboBox/TextField/TextArea/
@@ -106,8 +106,11 @@ QT_QUICK_CONTROLS_STYLE=AeroQt (QML). Source it / add to ~/.profile, re-login. G
   calendar and wizard pages at once. Line edits already glow via PE_PanelLineEdit (inputs.cpp).
 - Wizard/progress dialog in preview: top-level with no parent, show() then grab() then hide() - same
   offscreen pattern as QMenu popup (a parent without a window handle crashes).
-- State_Horizontal on PE_IndicatorToolBarExtension/PE_IndicatorToolBarHandle means the BAR is horizontal
-  (arrow points right), not that the indicator is horizontal.
+- Toolbar extension is NOT a style primitive (no PE_IndicatorToolBarExtension in QStyle): QToolBar shows a
+  QToolButton with SP_ToolBarHorizontal/VerticalExtensionButton icon sized by PM_ToolBarExtensionExtent.
+  Aero styles it via AeroStyle::standardPixmap (double chevron) + buttons.cpp slab. CE_MenuTearoff has a
+  lowercase f - CE_MenuTearOff does not exist.
+- State_Horizontal on PE_IndicatorToolBarHandle means the BAR is horizontal (arrow points right).
 
 ## Gotchas learned in 5
 - hover(w, id, on): new (widget,id) entries start at 0 and fade toward the target; entries at rest AND 0 are erased in tick().

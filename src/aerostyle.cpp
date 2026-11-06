@@ -13,6 +13,7 @@
 #include <QTabBar>
 #include <QAbstractScrollArea>
 #include <QDebug>
+#include <QPixmap>
 
 AeroStyle::AeroStyle() : QProxyStyle(QStringLiteral("fusion"))
 {
@@ -233,4 +234,34 @@ int AeroStyle::styleHint(StyleHint sh, const QStyleOption *o, const QWidget *w, 
         if (v != Module::Unhandled) return v;
     }
     return QProxyStyle::styleHint(sh, o, w, ret);
+}
+
+QPixmap AeroStyle::standardPixmap(StandardPixmap sp, const QStyleOption *opt) const
+{
+    // Toolbar extension button icon (QToolBar shows a QToolButton with this pixmap;
+    // there is no PE_IndicatorToolBarExtension primitive in QStyle).
+    if (sp == SP_ToolBarHorizontalExtensionButton || sp == SP_ToolBarVerticalExtensionButton) {
+        const bool horiz = sp == SP_ToolBarHorizontalExtensionButton;
+        QPixmap pm(16, 16);
+        pm.fill(Qt::transparent);
+        QPainter p(&pm);
+        p.setRenderHint(QPainter::Antialiasing);
+        const QColor c = (opt && opt->state & QStyle::State_Enabled)
+                             ? opt->palette.buttonText().color()
+                             : QColor(120, 120, 120);
+        p.setPen(Qt::NoPen);
+        p.setBrush(c);
+        for (int i = 0; i < 2; ++i) {           // double chevron along the bar axis
+            const int off = i * 5;
+            if (horiz) {
+                const int x = 2 + off;
+                p.drawPolygon(QPolygonF{QPointF(x, 4), QPointF(x, 12), QPointF(x + 4, 8)});
+            } else {
+                const int y = 2 + off;
+                p.drawPolygon(QPolygonF{QPointF(4, y), QPointF(12, y), QPointF(8, y + 4)});
+            }
+        }
+        return pm;
+    }
+    return QProxyStyle::standardPixmap(sp, opt);
 }

@@ -468,17 +468,17 @@ static QWidget *remainingPage()
                       | QStyleOptionTitleBar::MaxButton | QStyleOptionTitleBar::MenuButton;
         tb.state = QStyle::State_Enabled | QStyle::State_Active;
         w->style()->drawComplexControl(QStyle::CC_TitleBar, &tb, &pt, w);
-        for (int i = 0; i < 2; ++i) {
+        for (int i = 0; i < 2; ++i) {  // toolbar extension icons (standard pixmaps, not a primitive)
             QStyleOption ext;
             ext.initFrom(w);
-            ext.rect = QRect(400 + i * 60, 4, 22, 22);
-            ext.state = QStyle::State_Enabled | (i ? QStyle::State_None : QStyle::State_Horizontal);
-            w->style()->drawPrimitive(QStyle::PE_IndicatorToolBarExtension, &ext, &pt, w);
+            const QRect r(400 + i * 60, 4, 22, 22);
+            const auto sp = i ? QStyle::SP_ToolBarVerticalExtensionButton : QStyle::SP_ToolBarHorizontalExtensionButton;
+            pt.drawPixmap(r.topLeft(), w->style()->standardPixmap(sp, &ext));
         }
         QStyleOption to;
         to.initFrom(w);
         to.rect = QRect(4, 36, 380, 16);
-        w->style()->drawControl(QStyle::CE_MenuTearOff, &to, &pt, w);
+        w->style()->drawControl(QStyle::CE_MenuTearoff, &to, &pt, w);
         pt.setPen(w->palette().text().color());
         pt.drawText(QRect(4, 56, 380, 20), Qt::AlignVCenter, "tear-off strip above");
         pt.end();

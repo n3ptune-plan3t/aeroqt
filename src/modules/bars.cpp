@@ -9,8 +9,10 @@
 //  - PE_IndicatorToolBarHandle         : three engraved dots (State_Horizontal = bar is horizontal)
 //  - PE_IndicatorToolBarSeparator      : engraved line
 //  - PE_PanelStatusBar / FrameStatusBarItem : glass bar with top border / no item frames
-//  - PE_IndicatorToolBarExtension      : double chevron (State_Horizontal = bar is horizontal)
 //  - CE_SizeGrip                       : diagonal dot triangle, mirrored per corner (RTL passes BottomLeft)
+// Toolbar extension button is NOT a style primitive: QToolBar shows a QToolButton with
+// SP_ToolBarHorizontal/VerticalExtensionButton icon (sized by PM_ToolBarExtensionExtent).
+// The button slab is already Aero via buttons.cpp; the icon is Aero via AeroStyle::standardPixmap.
 namespace {
 struct Bars : Module {
     const char *name() const override { return "bars"; }
@@ -20,6 +22,7 @@ struct Bars : Module {
         switch (pm) {
         case QStyle::PM_ToolBarHandleExtent:    return int(t.num("toolbar.handle", 8));
         case QStyle::PM_ToolBarSeparatorExtent: return int(t.num("toolbar.separator", 8));
+        case QStyle::PM_ToolBarExtensionExtent: return int(t.num("toolbar.extension", 22));
         default: return -1;
         }
     }
@@ -77,16 +80,6 @@ struct Bars : Module {
             return true;
         case QStyle::PE_FrameStatusBarItem:
             return true;                                          // flat: no sunken frame around items
-        case QStyle::PE_IndicatorToolBarExtension: {              // double chevron along the bar axis
-            const bool horiz = o->state & QStyle::State_Horizontal;
-            const QColor c = t.color("combo.arrow", pal, pal.buttonText().color());
-            const QRect r = o->rect;
-            Glass::drawArrow(p, QRect(r.left() - (horiz ? 3 : 0), r.top() - (horiz ? 0 : 3), r.width(), r.height()),
-                             horiz ? Qt::RightArrow : Qt::DownArrow, c, o->state & QStyle::State_Enabled);
-            Glass::drawArrow(p, QRect(r.left() + (horiz ? 3 : 0), r.top() + (horiz ? 0 : 3), r.width(), r.height()),
-                             horiz ? Qt::RightArrow : Qt::DownArrow, c, o->state & QStyle::State_Enabled);
-            return true;
-        }
         default: return false;
         }
     }

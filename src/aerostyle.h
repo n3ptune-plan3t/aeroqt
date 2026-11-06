@@ -32,6 +32,7 @@ public:
     QRect subElementRect(SubElement se, const QStyleOption *opt, const QWidget *w) const override;
     int styleHint(StyleHint sh, const QStyleOption *opt, const QWidget *w,
                   QStyleHintReturn *ret) const override;
+    QPixmap standardPixmap(StandardPixmap sp, const QStyleOption *opt = nullptr) const override;
 
     const Theme &theme() const { return m_theme; }
 

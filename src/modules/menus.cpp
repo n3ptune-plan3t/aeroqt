@@ -13,7 +13,7 @@
 // CE_MenuItem layout (LTR; mirrored with visualRect for RTL):
 //   | pad | icon/check column | gap | text ...... shortcut | arrow area | pad |
 // QMenu adds tabWidth (widest shortcut) to the column width itself, so sizeFromContents must NOT.
-// CE_MenuTearOff: engraved line + dots at the top of a tear-off menu.
+// CE_MenuTearoff: engraved line + dots at the top of a tear-off menu.
 namespace {
 constexpr int kPad = 6;     // outer horizontal padding
 constexpr int kGap = 6;     // between icon column and text
@@ -100,7 +100,7 @@ struct Menus : Module {
         case QStyle::CE_MenuBarEmptyArea: paintBar(o->rect, o->palette, p, t); return true;
         case QStyle::CE_MenuBarItem:      return menuBarItem(o, p, w, t);
         case QStyle::CE_MenuItem:         return menuItem(o, p, w, t);
-        case QStyle::CE_MenuTearOff: {                        // grip strip at the top of a tear-off menu
+        case QStyle::CE_MenuTearoff: {                        // grip strip at the top of a tear-off menu
             const QPalette &pal = o->palette;
             const QColor dark = t.color("menu.separator", pal, Theme::mix(pal.base().color(), pal.dark().color(), 0.35));
             p->fillRect(o->rect, t.color("menu.base", pal, Theme::mix(pal.base().color(), pal.window().color(), 0.2)));
