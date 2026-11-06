@@ -6,6 +6,9 @@ on:
     tags: ["v*"]
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -49,4 +52,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: aeroqt-linux-x86_64.tar.gz
-          generate_release_notes: true
+          name: AeroQt ${{ github.ref_name }}
+          body: |
+            Qt6 Frutiger Aero widget style (phases 1-8) + QQC2 style for Kirigami/QML KDE apps.
+            Binary tarball: libaeroqt.so, aeroqt-preview, aeroqt-animtest, qml style, themes.
+            Enable: install plugin to <libdir>/qt6/plugins/styles/, QML style to <libdir>/qt6/qml/QtQuick/Controls/,
+            source tools/aeroqt-env.sh (QT_STYLE_OVERRIDE=aeroqt, QT_QUICK_CONTROLS_STYLE=AeroQt). GTK excluded.
