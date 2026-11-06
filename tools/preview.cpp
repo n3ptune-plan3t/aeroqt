@@ -129,7 +129,7 @@ static QWidget *rangePage()
     auto *spd = new QSpinBox; spd->setValue(7); spd->setEnabled(false); f->addRow("  disabled", spd);
     auto *spm = new QSpinBox; spm->setRange(0, 10); spm->setValue(10); f->addRow("  at max", spm);
 
-    auto *cb = new QComboBox; cb->addItems({"Frutiger Aero", "Flat Dark", "Win7 Classic"}); f->addRow("ComboBox", cb);
+    auto *cb = new QComboBox; cb->addItems({"Frutiger Aero", "Flat Dark", "Win7 Classic", "Aero Lite"}); f->addRow("ComboBox", cb);
     auto *ce = new QComboBox; ce->setEditable(true); ce->addItems({"Editable", "Other"}); f->addRow("  editable", ce);
     auto *cd = new QComboBox; cd->addItems({"Disabled"}); cd->setEnabled(false); f->addRow("  disabled", cd);
 

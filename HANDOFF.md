@@ -108,6 +108,29 @@ grey disabled tint; toolbar-extension pixmap is now DPR-backed and uses the Disa
 TextField/TextArea), checked/hovered/pressed/disabled/placeholder states, ComboBox arrow rotates
 when open, Switch knob animates, ProgressBar fill clipped to the groove.
 
+Phase 10: lightweight Aero (same look, fewer cycles) — comparison vs standards.
+Docs/source basis: Qt Styling Approaches (https://doc.qt.io/qt-6/qtwidgets-styling-approaches.html):
+a style subclass repaints natively, QSS instead "matches selectors ... caches rules per widget, the
+memory/cost grows with widgets+rules" and repolishes everything; Fusion "draws with QPalette, same
+style light+dark variant, no switch"; Kvantum = SVG-based engine (needs QtSvg, parses+renders SVG
+themes at runtime), Klassy/Breeze = binary C++ QStyle forked from Breeze but with KF6 deps
+(KF6KirigamiPlatform/KF6WindowSystem/Qt6Svg...), Lightly likewise. AeroQt stays: QProxyStyle over
+built-in Fusion (no reimplemented geometry), QPainter only (no QtSvg/KF/QSS — no extra link deps,
+.handoff Phase 7), full QPalette roles. What Phase 10 trims to approach Fusion/Klassy cost:
+- Theme hot path: Theme::lookup() + color-string split are cached after load (was split+trim+toDouble
+  per paint). Still palette-resolved per call, but string work is gone — the overhead Fusion avoids.
+- Glass: perf.gloss/perf.glow multipliers (1 = full); 0 skips that gradient pass entirely. Settled
+  slabs (hoverT at rest) are rendered once to a DPR-aware QPixmap (cap 96, ~1-2MB) and blitted after,
+  incl. caller clip (tabs); mid-transition hover frames (110/240ms) still paint direct. Breeze/Klassy
+  cache the static state the same way; Kvantum re-renders SVG instead.
+- Animator: QTimer is now CoarseTimer + anim.frameMs (default 16, aero-lite 33 ≈30fps). Same
+  hoverIn/Out durations, half the wakeups. AEROQT_PERF_LIGHT forces frameMs≥33 + gloss/glow≤0.3
+  on any theme (Klassy-style "reduce effects" preset). AEROQT_NO_ANIM still kills hover animation.
+- New built-in preset aero-lite (AEROQT_THEME_NAME=aero-lite, --theme=aero-lite): Win7-flavoured
+  geometry, gloss 0.12, perf 0.3/0.3, progress.shine=0 (no 60fps shine repaint), faster short hover
+  (80/160ms). Frutiger/Flat/Win7 stay full-Aero. QML mirrors this implicitly (palette-driven, no
+  extra QML backend; Kirigami animations stay at the app's own rate).
+
 ## Gotchas learned in 8
 - QQC2 style != QStyle: a Widgets-only plugin can never restyle Kirigami/QML controls. The QML side needs its
   own style directory + qmldir, selected by QT_QUICK_CONTROLS_STYLE (not QT_STYLE_OVERRIDE).
@@ -184,6 +207,14 @@ when open, Switch knob animates, ProgressBar fill clipped to the groove.
 5. (done) extra themes flat-dark + win7-classic + token docs (Phase 7)
 6. Wayland/HiDPI check (all painting is vector, uses QRectF); verify with devicePixelRatio test
    (Phase 9: Glass snap + extension pixmap are DPR-aware; still no live Wayland test headless)
+
+## Gotchas learned in 10
+- Slab cache key must include hoverT + hoverTint: settled hv=0 vs hv=1 share Spec.base but differ
+  by hoverTint mixing inside drawSlabDirect; without them the two states collide in one pixmap.
+- QPixmap with setDevicePixelRatio(dpr) is drawn at logical size/ dpr; painting it in logical
+  coords (no extra p.scale(dpr)) is correct, p.scale would double-scale (Phase 9 note holds).
+- CoarseTimer tick: hover math uses elapsed dt, so frameMs 16→33 does not change total duration,
+  only the step size. Keep tick interval === theme anim.frameMs and update it in applyAnimSettings.
 
 ## Gotchas learned in 9
 - Hard-coded hex in theme tokens (progress fill/glow) breaks "follows the KDE scheme": palette

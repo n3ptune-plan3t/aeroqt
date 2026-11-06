@@ -24,6 +24,16 @@ struct Spec {
     // Horizontal = light left / deep right (thumbs of vertical scrollbars).
     Qt::Orientation axis = Qt::Vertical;
 };
+// Lightweight controls (Fusion is palette-native and draws ~flat fills with
+// no per-frame SVG/QSS work; Kvantum pays QtSvg per widget, Klassy/Breeze add
+// KF deps). AeroQt keeps native QPainter + palette (no Svg/KF/QSS), but still
+// recomputing 3 gradients per slab was the remaining hot cost. Two knobs
+// close the gap (see aero-lite preset): perf multipliers scale/skip the
+// gloss+glow passes, and a bounded pixmap cache renders a settled slab
+// (hoverT at rest) once and blits it thereafter (like Klassy/Breeze caching
+// the static state). setPerf(1,1)+cache is the default full-Aero look.
+void setPerf(qreal glossMul, qreal glowMul);
+void clearCache();
 void drawSlab(QPainter *p, const QRectF &rect, const Spec &s);
 // Calm raised panel (tab pane, menu popups): soft top light, keyline, border.
 void drawPanel(QPainter *p, const QRectF &rect, qreal radius, const QColor &fill, const QColor &border);

@@ -1,6 +1,9 @@
 #include "glass.h"
+#include <QHash>
 #include <QLinearGradient>
+#include <QPaintDevice>
 #include <QPainterPath>
+#include <QPixmap>
 #include <QRadialGradient>
 
 namespace Glass {
@@ -27,7 +30,45 @@ static QPainterPath rr(const QRectF &r, qreal rad)
     return p;
 }
 
-void drawSlab(QPainter *p, const QRectF &rectIn, const Spec &s)
+// Lightweight knobs: gloss/glow pass multipliers from the theme ("perf.gloss"
+// / "perf.glow", 1 = full Aero, 0 = skip that gradient pass entirely).
+static qreal g_glossMul = 1.0;
+static qreal g_glowMul = 1.0;
+static constexpr int kMaxSlabs = 96;
+
+void setPerf(qreal glossMul, qreal glowMul)
+{
+    g_glossMul = qBound<qreal>(0.0, glossMul, 1.0);
+    g_glowMul = qBound<qreal>(0.0, glowMul, 1.0);
+    clearCache();
+}
+
+// Settled-state slab pixmap cache (bounded). Keyed by size/DPR/spec colors,
+// so a theme reload, palette change or DPR change naturally misses and
+// re-renders; the cap bounds RAM at ~96 * w*h*4B (buttons ~10KB each).
+static QHash<QString, QPixmap> g_slabs;
+
+void clearCache() { g_slabs.clear(); }
+
+static QString slabKey(qreal dpr, const QRectF &rect, const Spec &s, qreal hv)
+{
+    return QString::number(int(rect.width() * dpr + 0.5)) + QLatin1Char('x')
+         + QString::number(int(rect.height() * dpr + 0.5)) + QLatin1Char('@')
+         + QString::number(dpr) + QLatin1Char('|') + QString::number(s.radius)
+         + QLatin1Char('|') + s.base.name(QColor::HexArgb) + QLatin1Char('|')
+         + s.border.name(QColor::HexArgb) + QLatin1Char('|') + s.glow.name(QColor::HexArgb)
+         + QLatin1Char('|') + QString::number(qRound(s.gloss * 100))
+         + QLatin1Char('|') + QString::number(s.pressed ? 1 : 0)
+         + QLatin1Char('|') + QString::number(s.enabled ? 1 : 0)
+         + QLatin1Char('|') + QString::number(qRound(hv * 100))
+         + QLatin1Char('|') + QString::number(qRound(s.hoverTint * 100))
+         + QLatin1Char('|') + (s.axis == Qt::Horizontal ? QLatin1Char('h') : QLatin1Char('v'));
+}
+
+// Direct painter (3 gradients). Called for animated hover frames (hoverT
+// mid-transition) and as the cache miss path; the cached wrapper below is
+// the hot path for settled slabs.
+static void drawSlabDirect(QPainter *p, const QRectF &rectIn, const Spec &s)
 {
     p->save();
     p->setRenderHint(QPainter::Antialiasing);
@@ -72,10 +113,10 @@ void drawSlab(QPainter *p, const QRectF &rectIn, const Spec &s)
     p->setBrush(g);
     p->drawPath(body);
 
-    // 2. bottom glow (reflected light)
-    if (s.enabled) {
+    // 2. bottom glow (reflected light; skipped in lite perf mode)
+    if (s.enabled && g_glowMul > 0.001) {
         QColor gl = s.glow;
-        gl.setAlphaF((0.45 + 0.30 * hv) * (s.pressed ? 0.6 : 1.0));
+        gl.setAlphaF((0.45 + 0.30 * hv) * (s.pressed ? 0.6 : 1.0) * g_glowMul);
         QRadialGradient rg(r.center().x(), r.bottom(), r.width() * 0.55);
         rg.setColorAt(0, gl);
         gl.setAlpha(0);
@@ -87,12 +128,12 @@ void drawSlab(QPainter *p, const QRectF &rectIn, const Spec &s)
         p->restore();
     }
 
-    // 3. glossy upper-half highlight
-    if (!s.pressed && s.enabled) {
+    // 3. glossy upper-half highlight (skipped in lite perf mode)
+    if (!s.pressed && s.enabled && s.gloss * g_glossMul > 0.001) {
         QRectF top(r.left() + 1, r.top() + 1, r.width() - 2, r.height() * 0.48);
         QLinearGradient hg(top.topLeft(), top.bottomLeft());
-        hg.setColorAt(0, QColor::fromRgbF(1, 1, 1, 0.85 * s.gloss));
-        hg.setColorAt(1, QColor::fromRgbF(1, 1, 1, 0.12 * s.gloss));
+        hg.setColorAt(0, QColor::fromRgbF(1, 1, 1, 0.85 * s.gloss * g_glossMul));
+        hg.setColorAt(1, QColor::fromRgbF(1, 1, 1, 0.12 * s.gloss * g_glossMul));
         p->setBrush(hg);
         p->drawPath(rr(top, qMax<qreal>(0, s.radius - 1)));
     }
@@ -108,6 +149,42 @@ void drawSlab(QPainter *p, const QRectF &rectIn, const Spec &s)
     p->setPen(QPen(b, 1));
     p->drawPath(body);
     p->restore();
+}
+
+void drawSlab(QPainter *p, const QRectF &rect, const Spec &s)
+{
+    // Cache only settled slabs (hoverT at rest): mid-transition frames are
+    // few (hoverIn 110ms / hoverOut 240ms) and must vary continuously.
+    const qreal hv = s.hoverT >= 0 ? s.hoverT : (s.hovered ? 1.0 : 0.0);
+    const bool settled = hv <= 0.01 || hv >= 0.99;
+    const int w = qRound(rect.width()), h = qRound(rect.height());
+    if (!settled || w < 4 || h < 4 || w > 4096 || h > 4096 || !p) {
+        drawSlabDirect(p, rect, s);
+        return;
+    }
+    QPaintDevice *dev = p->device();
+    qreal dpr = dev ? dev->devicePixelRatioF() : 1.0;
+    if (!qIsFinite(dpr) || dpr <= 0) dpr = 1.0;
+    const QString key = slabKey(dpr, rect, s, hv);
+    const auto it = g_slabs.find(key);
+    if (it != g_slabs.end()) {
+        // blit; caller's clip (tabs) still applies to drawPixmap
+        p->drawPixmap(rect.topLeft(), it.value());
+        return;
+    }
+    QPixmap pm(qRound(rect.width()), qRound(rect.height()));
+    if (pm.isNull()) { drawSlabDirect(p, rect, s); return; }
+    pm.setDevicePixelRatio(dpr);
+    pm.fill(Qt::transparent);
+    QPainter mp(&pm);
+    drawSlabDirect(&mp, QRectF(0, 0, rect.width(), rect.height()), s);
+    mp.end();
+    if (g_slabs.size() >= kMaxSlabs) {
+        auto rit = g_slabs.begin();
+        if (rit != g_slabs.end()) g_slabs.erase(rit);
+    }
+    g_slabs.insert(key, pm);
+    p->drawPixmap(rect.topLeft(), pm);
 }
 
 void drawInset(QPainter *p, const QRectF &rect, qreal radius, const QColor &fill, const QColor &border)

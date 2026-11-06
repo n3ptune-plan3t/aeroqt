@@ -1,4 +1,5 @@
 #include "aerostyle.h"
+#include "glass.h"
 #include <QAbstractButton>
 #include <QAbstractItemView>
 #include <QAbstractSpinBox>
@@ -36,6 +37,9 @@ AeroStyle::AeroStyle() : QProxyStyle(QStringLiteral("fusion"))
     for (Module *m : m_modules) { m->self = this; m->anim = this; }
     m_clock.start();
     m_tick.setInterval(16);
+    // Coarse timer lets the OS coalesce wakeups (lightweight: fewer precise
+    // timer fires than Qt's default); still smooth at 16-33ms frame times.
+    m_tick.setTimerType(Qt::CoarseTimer);
     connect(&m_tick, &QTimer::timeout, this, &AeroStyle::tick);
     m_theme.loadDefault();
     connect(&m_watcher, &QFileSystemWatcher::fileChanged, this, &AeroStyle::reloadTheme);
@@ -46,6 +50,7 @@ AeroStyle::~AeroStyle() { qDeleteAll(m_modules); }
 
 void AeroStyle::reloadTheme()
 {
+    Glass::clearCache();
     const QString user = Theme::userPath();
     if (QFileInfo::exists(user)) {
         if (m_theme.load(user)) {
@@ -64,6 +69,19 @@ void AeroStyle::applyAnimSettings()
     m_animOn = !qEnvironmentVariableIsSet("AEROQT_NO_ANIM") && m_theme.num("anim.enabled", 1) > 0.5;
     m_inMs  = qMax(1, int(m_theme.num("anim.hoverIn", 110)));
     m_outMs = qMax(1, int(m_theme.num("anim.hoverOut", 240)));
+    // Lightweight tick (Fusion draws instantly; Breeze/Klassy animate, but
+    // 60Hz CoarseTimer wakeups are the main CPU cost on low-end laptops).
+    // aero-lite sets anim.frameMs=33 (~30fps) via theme; AEROQT_PERF_LIGHT
+    // forces it for any theme (matches Klassy-style "reduce effects" presets).
+    const bool perfLight = qEnvironmentVariableIsSet("AEROQT_PERF_LIGHT");
+    int frameMs = qBound(8, int(m_theme.num("anim.frameMs", 16)), 100);
+    if (perfLight) frameMs = qMax(frameMs, 33);
+    if (m_tick.interval() != frameMs) m_tick.setInterval(frameMs);
+    // Perf multipliers scale/skip glass gradient passes (see Glass::setPerf).
+    qreal glossMul = m_theme.num("perf.gloss", 1);
+    qreal glowMul = m_theme.num("perf.glow", 1);
+    if (perfLight) { glossMul = qMin(glossMul, 0.3); glowMul = qMin(glowMul, 0.3); }
+    Glass::setPerf(glossMul, glowMul);
     if (!m_animOn) { m_hover.clear(); m_phase.clear(); m_tick.stop(); }
 }
 

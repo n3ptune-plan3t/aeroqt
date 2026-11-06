@@ -1,5 +1,6 @@
 #pragma once
 #include <QColor>
+#include <QHash>
 #include <QJsonObject>
 #include <QPalette>
 #include <QString>
@@ -22,7 +23,22 @@ public:
     static QColor parseColor(const QString &s, const QPalette &pal, const QColor &def);
 
 private:
+    // Parsed color token ("@a+@b:0.3" split once, reused per paint). Palette
+    // resolution still happens per call (the palette itself differs per
+    // widget / color group), but the string work is cached: Fusion reads
+    // QPalette directly with zero string parsing, so this cache is what
+    // keeps our per-paint cost at that level (vs Kvantum's per-frame SVG
+    // / QtSvg work or QSS selector matching per widget).
+    struct ParsedColor {
+        bool mix = false;
+        QString a, b;
+        qreal t = 0.5;
+    };
     QJsonValue lookup(const QString &key) const;
+    QColor resolveParsed(const ParsedColor &pc, const QPalette &pal, const QColor &def) const;
+    static ParsedColor splitColorString(const QString &s);
     QJsonObject m_root;
     QString m_name = QStringLiteral("none");
+    mutable QHash<QString, QJsonValue> m_lookupCache;
+    mutable QHash<QString, ParsedColor> m_colorCache;
 };
