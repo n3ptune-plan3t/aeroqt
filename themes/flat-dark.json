@@ -1,0 +1,128 @@
+{
+  "name": "Flat Dark",
+  "gloss": 0.30,
+  "accent": "@highlight",
+  "button": {
+    "base": "@button+@dark:0.20",
+    "border": "@dark",
+    "glow": "@highlight",
+    "radius": 4
+  },
+  "input": {
+    "base": "@base",
+    "border": "@dark",
+    "focus": "@highlight",
+    "radius": 4
+  },
+  "check": {
+    "base": "@base+@button:0.4",
+    "mark": "@highlight",
+    "radius": 2
+  },
+  "progress": {
+    "groove": "@button+@dark:0.30",
+    "fill": "#3a8dde",
+    "glow": "#8ec9ff",
+    "radius": 4,
+    "marqueeMs": 1500,
+    "shine": 1,
+    "shineMs": 2600
+  },
+  "anim": {
+    "enabled": 1,
+    "hoverIn": 110,
+    "hoverOut": 240
+  },
+  "scrollbar": {
+    "groove": "@button+@dark:0.25",
+    "thumb": "@button+@highlight:0.12",
+    "border": "@dark",
+    "grip": "@dark+@highlight:0.15",
+    "radius": 3,
+    "extent": 17,
+    "minThumb": 28
+  },
+  "slider": {
+    "groove": "@button+@dark:0.30",
+    "fill": "@highlight",
+    "handle": "@button+@highlight:0.10",
+    "border": "@dark",
+    "tick": "@dark",
+    "grooveWidth": 6,
+    "handleLength": 18,
+    "handleThickness": 18
+  },
+  "spin": {
+    "button": "@button+@dark:0.20",
+    "radius": 2,
+    "buttonWidth": 17
+  },
+  "combo": {
+    "arrow": "@buttonText",
+    "buttonWidth": 20
+  },
+  "tab": {
+    "base": "@button+@dark:0.20",
+    "selected": "@button+@highlight:0.12",
+    "pane": "@window+@base:0.5",
+    "border": "@dark",
+    "radius": 4,
+    "paneRadius": 2
+  },
+  "menu": {
+    "base": "@base+@window:0.15",
+    "border": "@dark",
+    "separator": "@base+@dark:0.40",
+    "item": "@base+@highlight:0.35",
+    "itemBorder": "@highlight+@dark:0.30",
+    "itemRadius": 2,
+    "itemHeight": 24,
+    "separatorHeight": 8,
+    "hMargin": 2,
+    "vMargin": 3
+  },
+  "menubar": {
+    "base": "@window",
+    "border": "@dark"
+  },
+  "group": {
+    "base": "@window+@base:0.3",
+    "border": "@dark",
+    "radius": 4
+  },
+  "view": {
+    "selected": "@base+@highlight:0.35",
+    "inactive": "@base+@dark:0.25",
+    "hover": "@base+@highlight:0.15",
+    "radius": 2
+  },
+  "header": {
+    "base": "@button",
+    "border": "@dark"
+  },
+  "splitter": {
+    "width": 6,
+    "dots": "@window+@dark:0.55"
+  },
+  "dock": {
+    "base": "@window",
+    "border": "@dark"
+  },
+  "toolbar": {
+    "base": "@window",
+    "border": "@dark",
+    "handle": 8,
+    "separator": 8
+  },
+  "statusbar": {
+    "base": "@window",
+    "border": "@dark"
+  },
+  "titlebar": {
+    "base": "@window+@dark:0.20",
+    "active": "@button+@highlight:0.15",
+    "border": "@dark",
+    "radius": 3,
+    "height": 22
+  }
+}

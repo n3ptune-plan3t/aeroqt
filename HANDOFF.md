@@ -1,0 +1,171 @@
+# AeroQt — handoff (Phase 8 done: QML/Kirigami KDE apps follow via QQC2 style AeroQt; GTK excluded)
+
+Goal: from-scratch Qt6/KDE widget style ("aeroqt"), Frutiger Aero default, modular,
+easy to debug/style, compatible with KDE (palette-driven, no KDE link deps). Qt5 dropped.
+
+## Architecture
+- AeroStyle : QProxyStyle("fusion")  -> unhandled elements fall back to Fusion (always usable)
+- Module (src/module.h): one per widget family. Hooks (all optional):
+    draw:      drawPrimitive / drawControl / drawComplex      -> return true = handled
+    geometry:  pixelMetric (-1) / sizeFromContents (invalid QSize) / subControlRect (null QRect)
+               / subElementRect (null QRect) / styleHint (Module::Unhandled)
+  `Module::self` = the AeroStyle. Modules call `self->subControlRect(...)` to get FINAL geometry
+  (own override or Fusion's). Dispatch order = registration order in AeroStyle ctor.
+- Theme (JSON tokens, "@role" palette colors, "@a+@b:0.3" mixes) -> KDE color schemes work
+- Glass (src/glass.cpp): the ONLY place the Aero look is painted:
+    drawSlab (glass body, Spec.axis = Vertical|Horizontal gradient direction), drawInset,
+    drawFocusGlow, drawArrow, drawGrip
+- Theme override: $AEROQT_THEME or ~/.config/aeroqt/theme.json (deep-merged, hot-reloaded)
+- Debug: AEROQT_DEBUG=1 logs which module handled / fell back per element
+- Visual test: QT_QPA_PLATFORM=offscreen ./build/aeroqt-preview out.png [--dark] [--page=1|2]
+  (page 1 = buttons/inputs/progress, page 2 = scrollbar/slider/spin/combo, page 3 = tabs+menus). Then LOOK at the PNG.
+
+## Done (compiles on Qt 6.4.2, verified visually light+dark)
+Phase 2b: tabs (all 4 orientations, selected tab merges into pane, standalone base line with gap),
+menu popup (panel/frame/items/separators/icons/check/radio/shortcut/submenu arrow, RTL via visualRect),
+menubar (glass bar + glass active item). New Glass helpers: drawPanel, drawBar, drawSeparator.
+buttons, line edit, checkbox, radio, progress groove+fill,
+scrollbar (inset track, glass thumb + grip, glass arrow buttons),
+slider (thin groove, accent fill, round handle, ticks; horiz/vert/inverted),
+spinbox (unified glass button column + divider), combobox (non-editable = glass button;
+editable = inset + button column).
+
+## Not yet verified (no interactive session available headless)
+hover/pressed visuals for the new widgets (and tab hover) are code-reviewed only. Test in a real
+session (`QT_STYLE_OVERRIDE=aeroqt`) or add a QTest mouse-event script.
+
+Phase 3: frames.cpp (CC_GroupBox, PE_Frame, PE_PanelTipLabel, PE_FrameFocusRect), itemviews.cpp (item/row
+selection+hover slabs, CE_HeaderSection), docks.cpp (CE_Splitter, dock resize handle, dock title, floating frame).
+New: Theme::contrastText(), Glass::drawHandleDots(). polish(): WA_Hover on view viewports + QSplitterHandle.
+Preview: --page=4 (frames+views); item states / splitter handles / tooltip are painted directly in preview.cpp.
+
+Phase 4: bars.cpp (CE_ToolBar, toolbar handle/separator, status bar panel, CE_SizeGrip), misc.cpp (PE_IndicatorBranch,
+CC_Dial, CE_ToolBoxTabShape, CE_RubberBand), menus.cpp (+ section headers, CE_MenuScroller). New: Glass::edgeLight().
+Preview: --page=5 (bars+misc); size grips, rubber band, menu scroller and toolbar handle/separator are painted directly.
+
+Phase 5: animation engine in AeroStyle (implements `Animator`, declared in module.h; modules get it as `anim`,
+and the helper `Module::fade(w, id, on)`). Glass::Spec gained `hoverT` (0..1 from the engine) + `hoverTint`
+(fraction of `glow` mixed into `base`) — modules no longer do Theme::mix(base, accent, .15) for hover themselves.
+Faded: buttons/tool buttons (flat ones fade in/out entirely), check/radio, scrollbar parts, slider handle, spin/combo,
+tabs (per tab), menu + menubar items (highlight glides), item-view hover slabs, header sections, toolbox tabs, dial.
+Progress: indeterminate marquee (min==max==0) + a soft shine sweep on running determinate bars.
+Tokens: anim.enabled/hoverIn/hoverOut, progress.marqueeMs/shine/shineMs. Kill switch: env AEROQT_NO_ANIM=1.
+Test: `aeroqt-animtest` (ctest: anim_on / anim_off) checks fade monotonicity, fade-out to rest, marquee motion, kill switch.
+
+Phase 6: titlebar.cpp (CC_TitleBar glass bar + delegated button slabs + glyphs), bars.cpp
+PE_IndicatorToolBarExtension double chevron, menus.cpp CE_MenuTearOff engraved line+dots;
+frames.cpp PE_Frame gained focus glow
+(State_HasFocus -> Glass::drawFocusGlow) covering QTextEdit/QAbstractScrollArea/calendar/wizard pages.
+QCalendarWidget/QWizard/QProgressDialog need no painter: frame + tool/push buttons + progress bar already Aero;
+polish() sets WA_Hover on QCalendarWidget. Tokens: titlebar.base/active/border/radius/height.
+Preview: --page=6 (MDI subwindow, calendar, focused text edit, painted title bar/extension/tear-off,
+wizard + progress dialog grabbed to pixmaps). Qt5 removed: CMake Qt6-only, menus.cpp icon guard dropped.
+
+Phase 7: themes/flat-dark.json + themes/win7-classic.json (complete standalone token sets, in themes.qrc).
+Selection: $AEROQT_THEME_NAME=flat-dark|win7-classic (Theme::builtinPath(); default frutiger-aero);
+user $AEROQT_THEME / ~/.config/aeroqt/theme.json deep-merges over the SELECTED built-in (not always frutiger).
+Preview: --theme=flat-dark|win7-classic (must be parsed before AeroStyle ctor). KDE compat: no KDE link deps,
+all colors are "@role" palette mixes, so KDE color schemes (kdeglobals) flow through the palette automatically;
+only progress fill/glow are fixed hex accents. Test in a real KDE session (Dolphin/Kate) - not headless.
+
+## Theme tokens (themes/*.json, dotted keys; colors are "#rrggbb"/"#aarrggbb"/"@role"/"@a+@b:t", numbers are qreal)
+name, gloss, accent | button.base/border/glow/radius | input.base/border/focus/radius | check.base/mark/radius
+progress.groove/fill/glow/radius/marqueeMs/shine/shineMs | anim.enabled/hoverIn/hoverOut
+scrollbar.groove/thumb/border/grip/radius/extent/minThumb | slider.groove/fill/handle/border/tick/grooveWidth/handleLength/handleThickness
+spin.button/radius/buttonWidth | combo.arrow/buttonWidth | tab.base/selected/pane/border/radius/paneRadius
+menu.base/border/separator/item/itemBorder/itemRadius/itemHeight/separatorHeight/hMargin/vMargin
+menubar.base/border | group.base/border/radius | view.selected/inactive/hover/radius | header.base/border
+splitter.width/dots | dock.base/border | toolbar.base/border/handle/separator | statusbar.base/border
+titlebar.base/active/border/radius/height
+
+Phase 8: qml/QtQuick/Controls/AeroQt/ QQC2 style (Button/CheckBox/RadioButton/ComboBox/TextField/TextArea/
+Slider/ProgressBar/BusyIndicator/ScrollBar/TabBar/ToolBar/SpinBox/Switch, +qmldir) for Kirigami/QML KDE apps.
+Colors come from control.palette (QPalette roles), so KDE color schemes flow through exactly like the Widgets side;
+look = rounded (r=6) palette.button base + white gloss top-half + highlight bottom glow + dark border.
+Install: CMake installs it to <libdir>/qt6/qml/QtQuick/Controls/AeroQt. Enable BOTH layers with
+tools/aeroqt-env.sh (installed to share/aeroqt/): QT_STYLE_OVERRIDE=aeroqt (Widgets) +
+QT_QUICK_CONTROLS_STYLE=AeroQt (QML). Source it / add to ~/.profile, re-login. GTK apps unaffected (GTK themes).
+
+## Gotchas learned in 8
+- QQC2 style != QStyle: a Widgets-only plugin can never restyle Kirigami/QML controls. The QML side needs its
+  own style directory + qmldir, selected by QT_QUICK_CONTROLS_STYLE (not QT_STYLE_OVERRIDE).
+- QML controls read control.palette.* (QPalette roles), not our JSON tokens - so QML follows KDE scheme
+  automatically, but JSON gloss/radius choices are mirrored by hand in QML (r=6, gloss 0.28). Keep in sync.
+- No Qt in this env: QML is code-reviewed only. Test with a Kirigami app + QT_QUICK_CONTROLS_STYLE=AeroQt.
+
+## Gotchas learned in 7
+- Built-in themes are COMPLETE files: load() loads :/aeroqt/*.json as-is, only real file paths deep-merge.
+  A user override therefore always lands on the selected built-in (builtinPath()), never just frutiger.
+- Preview must parse --theme= BEFORE `new AeroStyle` (ctor reads AEROQT_THEME_NAME via builtinPath()).
+
+## Gotchas learned in 6
+- CC_TitleBar: paint the bar, then delegate each button slab via self->drawPrimitive(PE_PanelButtonTool)
+  (buttons module dispatches again - no recursion for a different element) and draw only the glyph.
+  Geometry comes from self->subControlRect(CC_TitleBar, ...) = Fusion's - no subControlRect override needed.
+- PE_Frame is the QFrame border hook: adding the focus glow there lights up QTextEdit, scroll areas,
+  calendar and wizard pages at once. Line edits already glow via PE_PanelLineEdit (inputs.cpp).
+- Wizard/progress dialog in preview: top-level with no parent, show() then grab() then hide() - same
+  offscreen pattern as QMenu popup (a parent without a window handle crashes).
+- State_Horizontal on PE_IndicatorToolBarExtension/PE_IndicatorToolBarHandle means the BAR is horizontal
+  (arrow points right), not that the indicator is horizontal.
+
+## Gotchas learned in 5
+- hover(w, id, on): new (widget,id) entries start at 0 and fade toward the target; entries at rest AND 0 are erased in tick().
+  Never call update() from inside a paint: only the 16ms timer repaints (tick), and it stops itself when nothing moves.
+- Scroll areas: the widget handed to the style is the VIEW, but painting happens in its viewport -> repaintWidget() updates
+  the viewport. Do the same if you add another animated scroll-area widget.
+- phase(w, ms) registers w as "animating" for 250ms after the last call; just stop calling it to stop the timer.
+  Every running determinate progress bar repaints at ~60fps because of the shine: disable with progress.shine = 0.
+- Hover ids: tabs/headers/toolbox use rect position, menus use item top/left, item views use row/col/internalId.
+- Selection in item views is instant on purpose (only hover fades).
+- Opacity trick for fade-out of slabs: p->setOpacity(p->opacity() * h) around Glass::drawSlab.
+
+## Gotchas learned in 4
+- Engraved highlights (white 1px line) must be SOFT on dark themes: use Glass::edgeLight(bg) (0.7 light / 0.1 dark).
+- Menu section header (separator with text): QMenu passes 2x2 to CT_MenuItem, the style must add the text width itself.
+- Toolbar border sits on the side facing the content (toolBarArea); status bar = same bar mirrored (top border).
+- Dial angle formula = QStyleHelper::drawDial: wrapping 3pi/2 - p*2pi, else (8pi - p*10pi)/6. Handle ring = 0.68 knob radius.
+- Branch indicator: no connector lines on purpose; State_MouseOver only arrives because polish() sets WA_Hover on view viewports.
+- SH_RubberBand_Mask = 0: the band blends with alpha (a top-level rubber band without compositing would show a solid box).
+- A stray empty dir "{src" (from a brace-expansion tar mishap) was removed from the tree.
+
+## Gotchas learned in 3
+- Qt item views report State_Active ONLY while the view has keyboard focus (even in an active window).
+  So "unfocused view" == "inactive selection": we draw a calm grey slab (token view.inactive), no accent glow.
+- CE_ItemViewItem: stock HighlightedText (white) vanishes on our LIGHT selection glass. itemviews.cpp re-enters the
+  style once with a copied option whose HighlightedText = Theme::contrastText(base); a thread_local `busy` flag makes the
+  module step aside on the re-entry so Fusion draws the content. Reuse this pattern for any "tweak option then delegate".
+- QTableView never sets viewItemPosition; positionOf() derives it from the column so a selected row is ONE slab.
+- PE_PanelItemViewRow only paints backgrounds (alternate/brush); items draw the slabs (avoids a glow blob in tree branch area).
+- Tooltip is square on purpose (tip window has no translucency). PE_IndicatorHeaderArrow left to Fusion
+  (Qt's SortUp/SortDown naming is inverted vs. intuition). Vertical dock title bars fall back to Fusion.
+- Offscreen preview: a view only paints 'active' selection if it has focus -> preview focuses the list after show.
+- GroupBox label uses subControlRect from Fusion; flat group box = engraved line at frame top.
+
+## Gotchas learned in 2b
+- QMenu adds tabWidth (widest shortcut) to the column width itself: CT_MenuItem must NOT include it.
+- QMenuBar paints items + empty area only (no panel): both CE_MenuBarItem and CE_MenuBarEmptyArea paint the bar.
+- Glass::drawSlab/drawInset now INTERSECT clips (no setClipping(false)): callers may clip a slab (tabs do).
+- Preview: QMenuBar::setActiveAction() pops the submenu up -> segfault offscreen; QMenu needs no parent + popup() before grab().
+- Tab bar overlap: PM_TabBarBaseOverlap=1 so the pane border runs under the bar's last row; selected tab covers it.
+- Section headers (separator with text), menu scroller, tear-off still fall back to Fusion.
+
+## TODO (priority order)
+2. (done) animations. Possible follow-ups: press ripple, tab switch crossfade, QStackedWidget fade, tooltip fade-in
+3. (done) remaining widgets (Phase 6); QLCDNumber needs nothing
+4. (done, code) KDE compat: palette-only colors, no KDE link deps (Phase 7); QML apps via QQC2 style (Phase 8).
+   Real-session test still TODO: Dolphin/Kate (QT_STYLE_OVERRIDE=aeroqt) + a Kirigami app
+   (QT_QUICK_CONTROLS_STYLE=AeroQt). GTK excluded on purpose.
+5. (done) extra themes flat-dark + win7-classic + token docs (Phase 7)
+6. Wayland/HiDPI check (all painting is vector, uses QRectF); verify with devicePixelRatio test
+
+## Conventions
+- New widget = src/modules/<name>.cpp + register<Name>() declared in module.h + AeroStyle ctor + CMake list
+- Never hardcode colors in modules: add a token to themes/frutiger-aero.json, read via Theme::color(key, pal, fallback)
+- Soft arrows: mix ButtonText with Button 25% (see spincombo.cpp arrowColor)
+- Install: plugin -> <libdir>/qt6/plugins/styles/libaeroqt.so; use with `QT_STYLE_OVERRIDE=aeroqt` or `-style aeroqt`
+
+## Dev environment recipe (Debian/Ubuntu, worked in sandbox)
+  apt-get install -y cmake ninja-build qt6-base-dev libgl1-mesa-dev
+  cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
+  QT_QPA_PLATFORM=offscreen ./build/aeroqt-preview /tmp/x.png --page=2

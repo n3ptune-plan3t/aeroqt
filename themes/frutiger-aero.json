@@ -1,0 +1,128 @@
+{
+  "name": "Frutiger Aero",
+  "gloss": 0.55,
+  "accent": "@highlight",
+  "button": {
+    "base": "@button+@highlight:0.10",
+    "border": "@dark+@highlight:0.35",
+    "glow": "@highlight",
+    "radius": 6
+  },
+  "input": {
+    "base": "@base",
+    "border": "@dark+@highlight:0.25",
+    "focus": "@highlight",
+    "radius": 5
+  },
+  "check": {
+    "base": "@base+@button:0.4",
+    "mark": "@highlight",
+    "radius": 3
+  },
+  "progress": {
+    "groove": "@button+@dark:0.25",
+    "fill": "#4cc94c",
+    "glow": "#b6ffb0",
+    "radius": 5,
+    "marqueeMs": 1500,
+    "shine": 1,
+    "shineMs": 2600
+  },
+  "anim": {
+    "enabled": 1,
+    "hoverIn": 110,
+    "hoverOut": 240
+  },
+  "scrollbar": {
+    "groove": "@button+@dark:0.22",
+    "thumb": "@button+@highlight:0.18",
+    "border": "@dark+@highlight:0.35",
+    "grip": "@dark+@highlight:0.2",
+    "radius": 4,
+    "extent": 17,
+    "minThumb": 28
+  },
+  "slider": {
+    "groove": "@button+@dark:0.25",
+    "fill": "@highlight",
+    "handle": "@button+@highlight:0.12",
+    "border": "@dark+@highlight:0.35",
+    "tick": "@dark",
+    "grooveWidth": 6,
+    "handleLength": 18,
+    "handleThickness": 18
+  },
+  "spin": {
+    "button": "@button+@highlight:0.10",
+    "radius": 3,
+    "buttonWidth": 17
+  },
+  "combo": {
+    "arrow": "@buttonText",
+    "buttonWidth": 20
+  },
+  "tab": {
+    "base": "@button+@dark:0.10",
+    "selected": "@button+@highlight:0.10",
+    "pane": "@window+@base:0.5",
+    "border": "@dark+@highlight:0.30",
+    "radius": 5,
+    "paneRadius": 3
+  },
+  "menu": {
+    "base": "@base+@window:0.2",
+    "border": "@dark+@highlight:0.30",
+    "separator": "@base+@dark:0.35",
+    "item": "@base+@highlight:0.45",
+    "itemBorder": "@highlight+@dark:0.25",
+    "itemRadius": 3,
+    "itemHeight": 24,
+    "separatorHeight": 8,
+    "hMargin": 2,
+    "vMargin": 3
+  },
+  "menubar": {
+    "base": "@window",
+    "border": "@window+@dark:0.45"
+  },
+  "group": {
+    "base": "@window+@base:0.3",
+    "border": "@dark+@highlight:0.25",
+    "radius": 5
+  },
+  "view": {
+    "selected": "@base+@highlight:0.45",
+    "inactive": "@base+@dark:0.22",
+    "hover": "@base+@highlight:0.18",
+    "radius": 3
+  },
+  "header": {
+    "base": "@button",
+    "border": "@dark+@button:0.5"
+  },
+  "splitter": {
+    "width": 6,
+    "dots": "@window+@dark:0.55"
+  },
+  "dock": {
+    "base": "@window",
+    "border": "@window+@dark:0.45"
+  },
+  "toolbar": {
+    "base": "@window",
+    "border": "@window+@dark:0.45",
+    "handle": 8,
+    "separator": 8
+  },
+  "statusbar": {
+    "base": "@window",
+    "border": "@window+@dark:0.45"
+  },
+  "titlebar": {
+    "base": "@window+@dark:0.15",
+    "active": "@button+@highlight:0.20",
+    "border": "@window+@dark:0.45",
+    "radius": 4,
+    "height": 22
+  }
+}

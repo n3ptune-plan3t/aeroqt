@@ -1,0 +1,5 @@
+<RCC><qresource prefix="/aeroqt">
+  <file>frutiger-aero.json</file>
+  <file>flat-dark.json</file>
+  <file>win7-classic.json</file>
+</qresource></RCC>
