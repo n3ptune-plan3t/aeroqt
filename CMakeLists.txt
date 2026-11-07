@@ -55,6 +55,12 @@ set_tests_properties(anim_on PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 add_test(NAME anim_off COMMAND aeroqt-animtest)
 set_tests_properties(anim_off PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;AEROQT_NO_ANIM=1")
 
+# Core regression tests: theme parsing/merge, HiDPI slab cache, animator bookkeeping.
+add_executable(aeroqt-coretest tools/coretest.cpp)
+target_link_libraries(aeroqt-coretest PRIVATE aeroqt_core)
+add_test(NAME core COMMAND aeroqt-coretest)
+set_tests_properties(core PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 include(GNUInstallDirs)
 set(AEROQT_PLUGIN_DIR "${CMAKE_INSTALL_LIBDIR}/qt${QT_VERSION_MAJOR}/plugins/styles"
     CACHE STRING "Where to install the style plugin")
