@@ -42,8 +42,13 @@ public:
     qreal phase(const QWidget *w, int periodMs) override;
     bool enabled() const override { return m_animOn; }
 
+    // Number of (widget, part) fades currently tracked; 0 when everything is at rest.
+    // Exposed for tests: cold parts must not allocate animation state.
+    int trackedParts() const;
+
 private slots:
     void reloadTheme();
+    void scheduleReload();
     void tick();
     void forget(QObject *o);
 
@@ -51,7 +56,10 @@ private:
     Theme m_theme;
     QVector<Module *> m_modules;
     QFileSystemWatcher m_watcher;
+    QTimer m_reloadTimer;
+    bool m_userThemeLoaded = false;
     bool m_debug = false;
+    void armWatcher();
 
     // ---- animation state (see Animator) ----
     struct Hot { qreal v = 0, target = 0; };

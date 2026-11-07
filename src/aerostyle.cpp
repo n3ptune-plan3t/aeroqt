@@ -14,6 +14,8 @@
 #include <QTabBar>
 #include <QAbstractScrollArea>
 #include <QDebug>
+#include <QDir>
+#include <QGuiApplication>
 #include <QPixmap>
 #include <QScreen>
 
@@ -42,11 +44,43 @@ AeroStyle::AeroStyle() : QProxyStyle(QStringLiteral("fusion"))
     m_tick.setTimerType(Qt::CoarseTimer);
     connect(&m_tick, &QTimer::timeout, this, &AeroStyle::tick);
     m_theme.loadDefault();
-    connect(&m_watcher, &QFileSystemWatcher::fileChanged, this, &AeroStyle::reloadTheme);
+    m_reloadTimer.setSingleShot(true);
+    m_reloadTimer.setInterval(60);
+    connect(&m_reloadTimer, &QTimer::timeout, this, &AeroStyle::reloadTheme);
+    connect(&m_watcher, &QFileSystemWatcher::fileChanged, this, &AeroStyle::scheduleReload);
+    connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, [this](const QString &) {
+        // Only the override file matters; ignore unrelated churn in ~/.config/aeroqt.
+        const QString user = Theme::userPath();
+        if (QFileInfo::exists(user) != m_userThemeLoaded || !m_watcher.files().contains(user))
+            scheduleReload();
+    });
     reloadTheme();
 }
 
-AeroStyle::~AeroStyle() { qDeleteAll(m_modules); }
+AeroStyle::~AeroStyle()
+{
+    // Pixmaps must not outlive the QGuiApplication (they would be destroyed from
+    // a static destructor otherwise); a second AeroStyle just re-fills the cache.
+    Glass::clearCache();
+    qDeleteAll(m_modules);
+}
+
+void AeroStyle::scheduleReload()
+{
+    // Editors fire several change events per save (truncate, write, rename);
+    // coalesce them into one reload.
+    m_reloadTimer.start();
+}
+
+void AeroStyle::armWatcher()
+{
+    // Watch the file (content edits) AND its directory (file created / replaced by an
+    // atomic rename / deleted) so a theme.json added after login hot-reloads too.
+    const QString user = Theme::userPath();
+    const QString dir = QFileInfo(user).absolutePath();
+    if (QFileInfo::exists(user) && !m_watcher.files().contains(user)) m_watcher.addPath(user);
+    if (QDir(dir).exists() && !m_watcher.directories().contains(dir)) m_watcher.addPath(dir);
+}
 
 void AeroStyle::reloadTheme()
 {
@@ -55,9 +89,17 @@ void AeroStyle::reloadTheme()
     if (QFileInfo::exists(user)) {
         if (m_theme.load(user)) {
             if (m_debug) qInfo() << "[aeroqt] loaded theme" << m_theme.name() << "from" << user;
-        } else qWarning() << "[aeroqt] bad theme json:" << user;
-        if (!m_watcher.files().contains(user)) m_watcher.addPath(user);  // re-arm after atomic saves
+        } else {
+            qWarning() << "[aeroqt] bad theme json, keeping the previous theme:" << user;
+        }
+    } else if (m_userThemeLoaded) {
+        // The override was removed: fall back to the selected built-in instead of
+        // silently keeping the stale override.
+        m_theme.loadDefault();
+        if (m_debug) qInfo() << "[aeroqt] user theme removed, back to" << m_theme.name();
     }
+    m_userThemeLoaded = QFileInfo::exists(user);
+    armWatcher();
     applyAnimSettings();
     if (qApp)
         for (QWidget *w : QApplication::allWidgets()) w->update();
@@ -85,6 +127,13 @@ void AeroStyle::applyAnimSettings()
     if (!m_animOn) { m_hover.clear(); m_phase.clear(); m_tick.stop(); }
 }
 
+int AeroStyle::trackedParts() const
+{
+    int n = 0;
+    for (auto it = m_hover.constBegin(); it != m_hover.constEnd(); ++it) n += it->size();
+    return n;
+}
+
 void AeroStyle::kick()
 {
     if (m_tick.isActive()) return;
@@ -104,10 +153,21 @@ qreal AeroStyle::hover(const QWidget *w, quintptr id, bool on)
     if (!m_animOn || !w) return tgt;
     auto it = m_hover.find(w);
     if (it == m_hover.end()) {
+        // Almost every painted part is cold. Do not allocate state (or connect a signal)
+        // for something that is not being hovered and has no fade in flight.
+        if (!on) return 0.0;
         it = m_hover.insert(w, {});
-        connect(w, &QObject::destroyed, this, &AeroStyle::forget);
+        // UniqueConnection: entries are erased when they come to rest, so the same long-lived
+        // widget gets here again on every later hover; without it each hover would add
+        // another destroyed() connection.
+        connect(w, &QObject::destroyed, this, &AeroStyle::forget, Qt::UniqueConnection);
     }
-    Hot &h = (*it)[id];                 // new parts start at 0 and fade toward the target
+    auto hi = it->find(id);
+    if (hi == it->end()) {
+        if (!on) return 0.0;
+        hi = it->insert(id, {});         // new parts start at 0 and fade toward the target
+    }
+    Hot &h = hi.value();
     if (h.target != tgt) { h.target = tgt; kick(); }
     return h.v;
 }
@@ -116,7 +176,7 @@ qreal AeroStyle::phase(const QWidget *w, int periodMs)
 {
     if (!m_animOn || !w || periodMs <= 0) return 0.5;
     const qint64 now = m_clock.elapsed();
-    if (!m_phase.contains(w)) connect(w, &QObject::destroyed, this, &AeroStyle::forget);
+    if (!m_phase.contains(w)) connect(w, &QObject::destroyed, this, &AeroStyle::forget, Qt::UniqueConnection);
     m_phase[w] = now;
     kick();
     return qreal(now % periodMs) / periodMs;
@@ -180,7 +240,11 @@ void AeroStyle::polish(QWidget *w)
         v->viewport()->setAttribute(Qt::WA_Hover, true);
 }
 
-void AeroStyle::unpolish(QWidget *w) { QProxyStyle::unpolish(w); }
+void AeroStyle::unpolish(QWidget *w)
+{
+    forget(w);
+    QProxyStyle::unpolish(w);
+}
 
 #define DISPATCH(call)                                                                       \
     for (const Module *m : m_modules)                                                        \
