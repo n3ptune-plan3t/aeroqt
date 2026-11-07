@@ -1,5 +1,8 @@
 #include "glass.h"
+#include <QCache>
 #include <QHash>
+#include <QtGlobal>
+#include <cstring>
 #include <QLinearGradient>
 #include <QPaintDevice>
 #include <QPainterPath>
@@ -34,8 +37,6 @@ static QPainterPath rr(const QRectF &r, qreal rad)
 // / "perf.glow", 1 = full Aero, 0 = skip that gradient pass entirely).
 static qreal g_glossMul = 1.0;
 static qreal g_glowMul = 1.0;
-static constexpr int kMaxSlabs = 96;
-
 void setPerf(qreal glossMul, qreal glowMul)
 {
     g_glossMul = qBound<qreal>(0.0, glossMul, 1.0);
@@ -43,26 +44,43 @@ void setPerf(qreal glossMul, qreal glowMul)
     clearCache();
 }
 
-// Settled-state slab pixmap cache (bounded). Keyed by size/DPR/spec colors,
-// so a theme reload, palette change or DPR change naturally misses and
-// re-renders; the cap bounds RAM at ~96 * w*h*4B (buttons ~10KB each).
-static QHash<QString, QPixmap> g_slabs;
+// Settled-state slab pixmap cache. Keyed by a POD of the physical size, DPR
+// and every spec field that changes the pixels (no per-paint string
+// building), so a theme reload, palette change or DPR change naturally
+// misses and re-renders. QCache gives real LRU eviction and a byte budget
+// instead of a fixed entry count, so one huge slab cannot evict a whole
+// window's worth of small buttons.
+struct SlabKey {
+    quint32 v[14];
+    bool operator==(const SlabKey &o) const { return std::memcmp(v, o.v, sizeof v) == 0; }
+};
+static inline size_t qHash(const SlabKey &k, size_t seed = 0) noexcept
+{
+    return qHashBits(k.v, sizeof k.v, seed);
+}
+
+static constexpr int kCacheBudgetKB = 6144;           // total pixmap budget (~6 MB)
+static QCache<SlabKey, QPixmap> g_slabs(kCacheBudgetKB);
 
 void clearCache() { g_slabs.clear(); }
 
-static QString slabKey(qreal dpr, const QRectF &rect, const Spec &s, qreal hv)
+static SlabKey makeKey(int pw, int ph, qreal dpr, const Spec &s, qreal hv)
 {
-    return QString::number(int(rect.width() * dpr + 0.5)) + QLatin1Char('x')
-         + QString::number(int(rect.height() * dpr + 0.5)) + QLatin1Char('@')
-         + QString::number(dpr) + QLatin1Char('|') + QString::number(s.radius)
-         + QLatin1Char('|') + s.base.name(QColor::HexArgb) + QLatin1Char('|')
-         + s.border.name(QColor::HexArgb) + QLatin1Char('|') + s.glow.name(QColor::HexArgb)
-         + QLatin1Char('|') + QString::number(qRound(s.gloss * 100))
-         + QLatin1Char('|') + QString::number(s.pressed ? 1 : 0)
-         + QLatin1Char('|') + QString::number(s.enabled ? 1 : 0)
-         + QLatin1Char('|') + QString::number(qRound(hv * 100))
-         + QLatin1Char('|') + QString::number(qRound(s.hoverTint * 100))
-         + QLatin1Char('|') + (s.axis == Qt::Horizontal ? QLatin1Char('h') : QLatin1Char('v'));
+    SlabKey k;
+    std::memset(&k, 0, sizeof k);
+    int i = 0;
+    k.v[i++] = quint32(pw);
+    k.v[i++] = quint32(ph);
+    k.v[i++] = quint32(qRound(dpr * 100));
+    k.v[i++] = quint32(qRound(s.radius * 100));
+    k.v[i++] = s.base.rgba();
+    k.v[i++] = s.border.rgba();
+    k.v[i++] = s.glow.rgba();
+    k.v[i++] = quint32(qRound(s.gloss * 100));
+    k.v[i++] = quint32(qRound(hv * 100));
+    k.v[i++] = quint32(qRound(s.hoverTint * 100));
+    k.v[i++] = (s.pressed ? 1u : 0u) | (s.enabled ? 2u : 0u) | (s.axis == Qt::Horizontal ? 4u : 0u);
+    return k;
 }
 
 // Direct painter (3 gradients). Called for animated hover frames (hoverT
@@ -157,34 +175,40 @@ void drawSlab(QPainter *p, const QRectF &rect, const Spec &s)
     // few (hoverIn 110ms / hoverOut 240ms) and must vary continuously.
     const qreal hv = s.hoverT >= 0 ? s.hoverT : (s.hovered ? 1.0 : 0.0);
     const bool settled = hv <= 0.01 || hv >= 0.99;
-    const int w = qRound(rect.width()), h = qRound(rect.height());
-    if (!settled || w < 4 || h < 4 || w > 4096 || h > 4096 || !p) {
+    if (!p || !settled || rect.width() < 4 || rect.height() < 4
+        || rect.width() > 2048 || rect.height() > 2048) {
         drawSlabDirect(p, rect, s);
         return;
     }
-    QPaintDevice *dev = p->device();
-    qreal dpr = dev ? dev->devicePixelRatioF() : 1.0;
+    qreal dpr = p->device() ? p->device()->devicePixelRatioF() : 1.0;
     if (!qIsFinite(dpr) || dpr <= 0) dpr = 1.0;
-    const QString key = slabKey(dpr, rect, s, hv);
-    const auto it = g_slabs.find(key);
-    if (it != g_slabs.end()) {
-        // blit; caller's clip (tabs) still applies to drawPixmap
-        p->drawPixmap(rect.topLeft(), it.value());
+
+    // The pixmap's *physical* size is the logical size times the DPR; its
+    // logical size (physical / dpr) is what we blit and what we paint into.
+    const int pw = qMax(1, qRound(rect.width() * dpr));
+    const int ph = qMax(1, qRound(rect.height() * dpr));
+    const QRectF local(0, 0, pw / dpr, ph / dpr);
+
+    const SlabKey key = makeKey(pw, ph, dpr, s, hv);
+    if (const QPixmap *hit = g_slabs.object(key)) {
+        p->drawPixmap(rect.topLeft(), *hit);        // caller's clip (tabs) still applies
         return;
     }
-    QPixmap pm(qRound(rect.width()), qRound(rect.height()));
-    if (pm.isNull()) { drawSlabDirect(p, rect, s); return; }
-    pm.setDevicePixelRatio(dpr);
-    pm.fill(Qt::transparent);
-    QPainter mp(&pm);
-    drawSlabDirect(&mp, QRectF(0, 0, rect.width(), rect.height()), s);
-    mp.end();
-    if (g_slabs.size() >= kMaxSlabs) {
-        auto rit = g_slabs.begin();
-        if (rit != g_slabs.end()) g_slabs.erase(rit);
+    const int costKB = qMax(1, pw * ph * 4 / 1024);
+    if (costKB > kCacheBudgetKB / 8) {              // too big to be worth keeping
+        drawSlabDirect(p, rect, s);
+        return;
     }
-    g_slabs.insert(key, pm);
-    p->drawPixmap(rect.topLeft(), pm);
+    auto *pm = new QPixmap(pw, ph);
+    if (pm->isNull()) { delete pm; drawSlabDirect(p, rect, s); return; }
+    pm->setDevicePixelRatio(dpr);
+    pm->fill(Qt::transparent);
+    {
+        QPainter mp(pm);
+        drawSlabDirect(&mp, local, s);
+    }
+    p->drawPixmap(rect.topLeft(), *pm);
+    g_slabs.insert(key, pm, costKB);                // QCache takes ownership
 }
 
 void drawInset(QPainter *p, const QRectF &rect, qreal radius, const QColor &fill, const QColor &border)
