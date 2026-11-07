@@ -3,6 +3,31 @@
 #include <QJsonDocument>
 #include <QDir>
 #include <QStandardPaths>
+#include <QtGlobal>
+
+// themes/themes.qrc lives inside the static library aeroqt_core. Nothing references its
+// generated initializer, so the linker drops that object file and ":/aeroqt/*.json" does
+// not exist in the plugin or the tools: no built-in theme would ever load. Referencing the
+// initializer here forces it in. (Must be called from the global namespace.)
+static void initThemeResources()
+{
+    Q_INIT_RESOURCE(themes);
+}
+
+// Deep-merge `over` into `base`: nested objects merge key by key at any depth,
+// everything else (numbers, strings, arrays) is replaced.
+static void mergeObjects(QJsonObject &base, const QJsonObject &over)
+{
+    for (auto it = over.begin(); it != over.end(); ++it) {
+        if (it->isObject() && base.value(it.key()).isObject()) {
+            QJsonObject sub = base.value(it.key()).toObject();
+            mergeObjects(sub, it->toObject());
+            base[it.key()] = sub;
+        } else {
+            base[it.key()] = it.value();
+        }
+    }
+}
 
 static bool readJson(const QString &path, QJsonObject &out)
 {
@@ -24,13 +49,22 @@ QString Theme::userPath()
 }
 
 // Built-in themes are complete files in themes/ (:/aeroqt/*.json).
-// Select one with $AEROQT_THEME_NAME=flat-dark|win7-classic|aero-lite (default frutiger-aero).
+// Select one with $AEROQT_THEME_NAME=frutiger-aero|flat-dark|win7-classic|aero-lite (default frutiger-aero).
 static QString builtinPath()
 {
-    const QByteArray n = qgetenv("AEROQT_THEME_NAME");
-    if (n == "flat-dark") return QStringLiteral(":/aeroqt/flat-dark.json");
-    if (n == "win7-classic") return QStringLiteral(":/aeroqt/win7-classic.json");
-    if (n == "aero-lite") return QStringLiteral(":/aeroqt/aero-lite.json");
+    static const char *const names[] = {"frutiger-aero", "flat-dark", "win7-classic", "aero-lite"};
+    const QString want = QString::fromLocal8Bit(qgetenv("AEROQT_THEME_NAME")).trimmed().toLower();
+    if (!want.isEmpty()) {
+        for (const char *n : names)
+            if (want == QLatin1String(n))
+                return QStringLiteral(":/aeroqt/") + want + QStringLiteral(".json");
+        static bool warned = false;                 // one warning, not one per reload
+        if (!warned) {
+            warned = true;
+            qWarning("[aeroqt] unknown AEROQT_THEME_NAME \"%s\" (have: frutiger-aero, flat-dark, "
+                     "win7-classic, aero-lite); using frutiger-aero", qPrintable(want));
+        }
+    }
     return QStringLiteral(":/aeroqt/frutiger-aero.json");
 }
 
@@ -38,20 +72,14 @@ bool Theme::loadDefault() { return load(builtinPath()); }
 
 bool Theme::load(const QString &path)
 {
+    initThemeResources();
     QJsonObject o;
     if (!readJson(path, o)) return false;
     // Built-in themes load as-is; user themes only override what they set (deep-merge over the selected built-in).
     if (!path.startsWith(QStringLiteral(":/aeroqt/"))) {
         QJsonObject base;
-        readJson(builtinPath(), base);
-        for (auto it = o.begin(); it != o.end(); ++it) {
-            if (it->isObject() && base.value(it.key()).isObject()) {
-                QJsonObject merged = base.value(it.key()).toObject();
-                const QJsonObject over = it->toObject();
-                for (auto j = over.begin(); j != over.end(); ++j) merged[j.key()] = j.value();
-                base[it.key()] = merged;
-            } else base[it.key()] = it.value();
-        }
+        if (!readJson(builtinPath(), base)) return false;
+        mergeObjects(base, o);
         o = base;
     }
     m_root = o;
@@ -67,7 +95,7 @@ QJsonValue Theme::lookup(const QString &key) const
     if (it != m_lookupCache.end()) return it.value();
     QJsonValue v = m_root;
     for (const QString &part : key.split(QLatin1Char('.'))) {
-        if (!v.isObject()) { m_lookupCache.insert(key, QJsonValue::Undefined); return v; }
+        if (!v.isObject()) { m_lookupCache.insert(key, QJsonValue::Undefined); return QJsonValue(QJsonValue::Undefined); }
         v = v.toObject().value(part);
     }
     m_lookupCache.insert(key, v);
