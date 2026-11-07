@@ -1,4 +1,4 @@
-# AeroQt — handoff (Phase 8 done: QML/Kirigami KDE apps follow via QQC2 style AeroQt; GTK excluded)
+# AeroQt — handoff (Phase 12 done: built-in themes now really load, HiDPI cache fixed, QML style loads + is tested; GTK excluded)
 
 Goal: from-scratch Qt6/KDE widget style ("aeroqt"), Frutiger Aero default, modular,
 easy to debug/style, compatible with KDE (palette-driven, no KDE link deps). Qt5 dropped.
@@ -82,7 +82,7 @@ Phase 8: qml/QtQuick/Controls/AeroQt/ QQC2 style (Button/CheckBox/RadioButton/Co
 Slider/ProgressBar/BusyIndicator/ScrollBar/TabBar/ToolBar/SpinBox/Switch, +qmldir) for Kirigami/QML KDE apps.
 Colors come from control.palette (QPalette roles), so KDE color schemes flow through exactly like the Widgets side;
 look = rounded (r=6) palette.button base + white gloss top-half + highlight bottom glow + dark border.
-Install: CMake installs it to <libdir>/qt6/qml/QtQuick/Controls/AeroQt. Enable BOTH layers with
+Install: CMake installs it to <libdir>/qt6/qml/AeroQt (a top-level module, see Phase 12). Enable BOTH layers with
 tools/aeroqt-env.sh (installed to share/aeroqt/): QT_STYLE_OVERRIDE=aeroqt (Widgets) +
 QT_QUICK_CONTROLS_STYLE=AeroQt (QML). Source it / add to ~/.profile, re-login. GTK apps unaffected (GTK themes).
 
@@ -145,7 +145,7 @@ shine=0 (classic = no sweep). aero-lite stays the lowest (0.3/0.3 + 33ms).
   own style directory + qmldir, selected by QT_QUICK_CONTROLS_STYLE (not QT_STYLE_OVERRIDE).
 - QML controls read control.palette.* (QPalette roles), not our JSON tokens - so QML follows KDE scheme
   automatically, but JSON gloss/radius choices are mirrored by hand in QML (r=6, gloss 0.28). Keep in sync.
-- No Qt in this env: QML is code-reviewed only. Test with a Kirigami app + QT_QUICK_CONTROLS_STYLE=AeroQt.
+- (Phase 12: the QML style is now loaded + behaviour-tested headless by ctest "qml"; still try a real Kirigami app.)
 
 ## Gotchas learned in 7
 - Built-in themes are COMPLETE files: load() loads :/aeroqt/*.json as-is, only real file paths deep-merge.
@@ -207,6 +207,39 @@ shine=0 (classic = no sweep). aero-lite stays the lowest (0.3/0.3 + 33ms).
 - Tab bar overlap: PM_TabBarBaseOverlap=1 so the pane border runs under the bar's last row; selected tab covers it.
 - Section headers (separator with text), menu scroller, tear-off still fall back to Fusion.
 
+Phase 12: audit with a real Qt 6.4 build (earlier phases were only verified through CI). Findings + fixes:
+- BUILT-IN THEMES NEVER LOADED. themes.qrc is inside the static lib aeroqt_core; nothing referenced its
+  initializer, so the linker dropped it and ":/aeroqt/*.json" did not exist in the plugin or any tool. Every
+  module ran on its hard-coded fallbacks: frutiger/flat-dark/win7-classic/aero-lite rendered byte-identical,
+  and perf.*, anim.frameMs, progress.shine had no effect. Fix: Q_INIT_RESOURCE(themes) in theme.cpp.
+  The look of the default theme is now what the JSON says (it was the module fallbacks before).
+- Glass slab cache was half size at DPR>1 (see the Phase 10 gotcha). Now: physical-size pixmap, POD key
+  (no per-paint QString building), QCache LRU with a ~6 MB budget, cleared in ~AeroStyle.
+- Animator: hover() inserted state + a destroyed() connection for every painted part even when never hovered
+  (item views: every cell); entries were erased at rest so the same widget re-connected on each later hover
+  (connections piled up). Now cold parts allocate nothing and connections are Qt::UniqueConnection;
+  unpolish() forgets the widget. AeroStyle::trackedParts() exists for the tests.
+- Theme: lookup("name.x") returned the string when a path walked through a non-object; user overrides
+  merged one level deep only (now recursive); unknown AEROQT_THEME_NAME is case-insensitive + warns once;
+  bad user theme keeps the previous one; deleting theme.json reverts to the built-in; the watcher also
+  watches the directory (a theme.json created after login hot-reloads) with a 60 ms debounce.
+- Flat tool buttons showed no keyboard focus indicator when idle; now they do.
+- QML style: could not load at all. (1) A custom style is a top-level module named after the style:
+  qml/AeroQt/qmldir ("module AeroQt"), not QtQuick/Controls/AeroQt (Qt: 'module "AeroQt" is not installed').
+  (2) ComboBox: missing T.Popup; showed blank text (editText instead of displayText); no delegate and
+  no popup height (empty dropdown); (3) SpinBox: upIndicator/downIndicator do not exist (up.indicator /
+  down.indicator) and an editable box needs a TextInput contentItem; (4) T.TextField/T.TextArea draw no
+  placeholder themselves - the style must supply a PlaceholderText item; (5) added TabButton (TabBar had none).
+- Tests: aeroqt-coretest (ctest "core": color/token parsing, deep merge, HiDPI cache at DPR 1/1.5/2/3, animator
+  bookkeeping) and aeroqt-qmltest (ctest "qml": loads every control with 0 QML warnings + behaviour checks;
+  built only if Qt6 Quick/QuickControls2 are found). Both were mutation-checked against the old code.
+  QML test deps (Ubuntu): qt6-declarative-dev qml6-module-qtquick{,-controls,-templates,-layouts,-window}
+  qml6-module-qtqml-workerscript. Run with QT_QUICK_BACKEND=software under QT_QPA_PLATFORM=offscreen.
+- Gotcha: static-lib Qt resources need Q_INIT_RESOURCE from a referenced object, or they silently vanish.
+- Gotcha: when checking "does X render differently", set AEROQT_NO_ANIM=1 (the progress shine/marquee make
+  repeated renders differ) and compare md5s of the PNGs.
+- Not covered by anything: other QML controls (Menu, ItemDelegate, Dial, GroupBox...) still fall back to Qt's Basic.
+
 ## TODO (priority order)
 2. (done) animations. Possible follow-ups: press ripple, tab switch crossfade, QStackedWidget fade, tooltip fade-in
 3. (done) remaining widgets (Phase 6); QLCDNumber needs nothing
@@ -220,8 +253,9 @@ shine=0 (classic = no sweep). aero-lite stays the lowest (0.3/0.3 + 33ms).
 ## Gotchas learned in 10
 - Slab cache key must include hoverT + hoverTint: settled hv=0 vs hv=1 share Spec.base but differ
   by hoverTint mixing inside drawSlabDirect; without them the two states collide in one pixmap.
-- QPixmap with setDevicePixelRatio(dpr) is drawn at logical size/ dpr; painting it in logical
-  coords (no extra p.scale(dpr)) is correct, p.scale would double-scale (Phase 9 note holds).
+- QPixmap(w, h) is w x h *physical* pixels; setDevicePixelRatio(dpr) then makes its logical size
+  (w/dpr, h/dpr). The slab cache must therefore allocate logical*dpr pixels (Phase 12 fix: it used to
+  allocate logical size, so slabs were half size at DPR 2). Paint in logical coords, no extra p.scale(dpr).
 - CoarseTimer tick: hover math uses elapsed dt, so frameMs 16→33 does not change total duration,
   only the step size. Keep tick interval === theme anim.frameMs and update it in applyAnimSettings.
 
@@ -244,5 +278,8 @@ shine=0 (classic = no sweep). aero-lite stays the lowest (0.3/0.3 + 33ms).
 
 ## Dev environment recipe (Debian/Ubuntu, worked in sandbox)
   apt-get install -y cmake ninja-build qt6-base-dev libgl1-mesa-dev
+  # optional, for the QML test (ctest "qml"):
+  apt-get install -y qt6-declarative-dev qml6-module-qtquick qml6-module-qtquick-controls \
+      qml6-module-qtquick-templates qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtqml-workerscript
   cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
   QT_QPA_PLATFORM=offscreen ./build/aeroqt-preview /tmp/x.png --page=2
