@@ -61,13 +61,26 @@ target_link_libraries(aeroqt-coretest PRIVATE aeroqt_core)
 add_test(NAME core COMMAND aeroqt-coretest)
 set_tests_properties(core PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# QML style smoke test (optional: needs Qt Quick Controls + the qml6-module-* runtime packages).
+find_package(Qt6 QUIET COMPONENTS Quick QuickControls2)
+if(TARGET Qt6::Quick AND TARGET Qt6::QuickControls2)
+  add_executable(aeroqt-qmltest tools/qmltest.cpp)
+  target_link_libraries(aeroqt-qmltest PRIVATE Qt6::Quick Qt6::QuickControls2)
+  add_test(NAME qml COMMAND aeroqt-qmltest ${CMAKE_SOURCE_DIR}/qml ${CMAKE_SOURCE_DIR}/tools/qmltest.qml)
+  set_tests_properties(qml PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+else()
+  message(STATUS "Qt6 Quick / QuickControls2 not found: skipping the QML style test")
+endif()
+
 include(GNUInstallDirs)
 set(AEROQT_PLUGIN_DIR "${CMAKE_INSTALL_LIBDIR}/qt${QT_VERSION_MAJOR}/plugins/styles"
     CACHE STRING "Where to install the style plugin")
 install(TARGETS aeroqt LIBRARY DESTINATION ${AEROQT_PLUGIN_DIR})
 install(TARGETS aeroqt-preview RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-# QQC2 style for Kirigami/QML KDE apps (selected with QT_QUICK_CONTROLS_STYLE=AeroQt)
-set(AEROQT_QML_DIR "${CMAKE_INSTALL_LIBDIR}/qt${QT_VERSION_MAJOR}/qml/QtQuick/Controls"
-    CACHE STRING "Where to install the QQC2 style")
-install(DIRECTORY qml/QtQuick/Controls/AeroQt DESTINATION ${AEROQT_QML_DIR})
+# QQC2 style for Kirigami/QML KDE apps (selected with QT_QUICK_CONTROLS_STYLE=AeroQt).
+# A custom style is a top-level QML module named after the style: <qml dir>/AeroQt/qmldir
+# ("module AeroQt"). It is NOT looked up under QtQuick/Controls/ - that is for Qt's built-ins.
+set(AEROQT_QML_DIR "${CMAKE_INSTALL_LIBDIR}/qt${QT_VERSION_MAJOR}/qml"
+    CACHE STRING "Where to install the QQC2 style (the AeroQt/ module directory goes inside)")
+install(DIRECTORY qml/AeroQt DESTINATION ${AEROQT_QML_DIR})
 install(PROGRAMS tools/aeroqt-env.sh DESTINATION ${CMAKE_INSTALL_DATADIR}/aeroqt)

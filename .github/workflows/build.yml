@@ -18,7 +18,10 @@ jobs:
       - name: Install Qt6 + build deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build qt6-base-dev libgl1-mesa-dev
+          sudo apt-get install -y cmake ninja-build qt6-base-dev libgl1-mesa-dev \
+            qt6-declarative-dev qml6-module-qtquick qml6-module-qtquick-controls \
+            qml6-module-qtquick-templates qml6-module-qtquick-layouts \
+            qml6-module-qtquick-window qml6-module-qtqml-workerscript
 
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -39,7 +42,7 @@ jobs:
           [ -n "$VERSION" ] && [ "$VERSION" != "main" ] || VERSION="0.1.0"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           mkdir -p dist
-          cp build/libaeroqt.so build/aeroqt-preview build/aeroqt-animtest dist/ 2>/dev/null || cp build/*.so dist/
+          cp build/libaeroqt.so build/aeroqt-preview build/aeroqt-animtest build/aeroqt-coretest dist/ 2>/dev/null || cp build/*.so dist/
           cp -r qml themes tools/aeroqt-env.sh dist/
           cp CMakeLists.txt HANDOFF.md dist/ 2>/dev/null || true
           tar -czf "aeroqt-${VERSION}.tar.gz" -C dist .
@@ -60,5 +63,5 @@ jobs:
           body: |
             Qt6 Frutiger Aero widget style (phases 1-8) + QQC2 style for Kirigami/QML KDE apps.
             Binary tarball: libaeroqt.so, aeroqt-preview, aeroqt-animtest, qml style, themes.
-            Enable: install plugin to <libdir>/qt6/plugins/styles/, QML style to <libdir>/qt6/qml/QtQuick/Controls/,
+            Enable: install plugin to <libdir>/qt6/plugins/styles/, QML style (the AeroQt/ dir) to <libdir>/qt6/qml/,
             source tools/aeroqt-env.sh (QT_STYLE_OVERRIDE=aeroqt, QT_QUICK_CONTROLS_STYLE=AeroQt). GTK excluded.

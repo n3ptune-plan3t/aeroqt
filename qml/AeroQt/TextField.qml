@@ -11,6 +11,20 @@ T.TextField {
     placeholderTextColor: Qt.alpha(control.palette.text, 0.55)
     selectionColor: control.palette.highlight
     selectedTextColor: control.palette.highlightedText
+    PlaceholderText {
+        x: control.leftPadding
+        y: control.topPadding
+        width: control.width - (control.leftPadding + control.rightPadding)
+        height: control.height - (control.topPadding + control.bottomPadding)
+        text: control.placeholderText
+        font: control.font
+        color: control.placeholderTextColor
+        verticalAlignment: control.verticalAlignment
+        visible: !control.length && !control.preeditText
+                 && (!control.activeFocus || control.horizontalAlignment !== Qt.AlignHCenter)
+        elide: Text.ElideRight
+        renderType: control.renderType
+    }
     background: Rectangle {
         radius: 5
         color: control.palette.base
