@@ -20,10 +20,16 @@ struct Buttons : Module {
         // flat tool buttons only show glass on interaction (fading in/out with the hover factor)
         const qreal hv = fade(w, 0, hover && enabled);
         const bool flat = pe == QStyle::PE_PanelButtonTool && (st & QStyle::State_AutoRaise) && !down;
-        if (flat && hv <= 0.002) return true;
+        const bool kbFocus = (st & QStyle::State_HasFocus) && (st & QStyle::State_KeyboardFocusChange);
 
         const QPalette &pal = o->palette;
         const QColor accent = t.color("accent", pal, pal.highlight().color());
+        if (flat && hv <= 0.002) {
+            // An idle flat tool button paints no slab, but a keyboard-focused one must
+            // still show where focus is (focus must never depend on hover).
+            if (kbFocus) Glass::drawFocusGlow(p, o->rect, t.num("button.radius", 6), accent);
+            return true;
+        }
         QColor base = t.color("button.base", pal, pal.button().color());
         if (const auto *b = qstyleoption_cast<const QStyleOptionButton *>(o))
             if (b->features & QStyleOptionButton::DefaultButton) base = Theme::mix(base, accent, 0.25);
@@ -43,8 +49,7 @@ struct Buttons : Module {
         if (flat) { p->save(); p->setOpacity(p->opacity() * hv); }
         Glass::drawSlab(p, o->rect, s);
         if (flat) p->restore();
-        if ((st & QStyle::State_HasFocus) && (st & QStyle::State_KeyboardFocusChange))
-            Glass::drawFocusGlow(p, o->rect, s.radius, accent);
+        if (kbFocus) Glass::drawFocusGlow(p, o->rect, s.radius, accent);
         return true;
     }
 };
